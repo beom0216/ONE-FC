@@ -164,6 +164,20 @@ nav button.on{color:#fff;border-bottom-color:#4da3ff}
 .pk.cur{background:var(--b2)}
 .pk.used b{color:var(--mute)}
 .slot{cursor:pointer}
+.stp.wide{grid-column:span 2}
+.awg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 14px 14px}
+@media(max-width:520px){.awg{grid-template-columns:minmax(0,1fr)}}
+.aw{min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fbfcfe}
+.aw h4{margin:0 0 6px;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.aw h4 span{font-size:11px;color:var(--mute);font-weight:500}
+.aw .rk{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:14px}
+.aw .rk .md{width:22px;text-align:center}
+.aw .rk .nmz{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aw .rk b.v{font-family:Oswald,sans-serif;font-size:16px}
+.cfgrow{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.cfgrow input,.cfgrow select{border:1px solid var(--line);border-radius:9px;padding:9px 10px;background:#fff;min-width:0}
+.cfgrow input{flex:1.3}.cfgrow select{flex:1}
+.cfgrow .x{color:var(--red);font-size:20px;width:34px;height:38px;flex:none}
 </style>
 </head>
 <body>
@@ -186,13 +200,25 @@ const byNum=(a,b)=>numKey(a)-numKey(b)||String(a.name).localeCompare(String(b.na
 const pname=p=>p?(p.name+(p.number!==''&&p.number!=null?' #'+p.number:'')):'(삭제된 선수)';
 
 const S={players:{},matches:{},loaded:false,stale:false,mode:'db',tab:'match',draft:null,dirty:false,
-  sort:{k:'pts',d:-1},season:'all',pfilter:'active',psort:'num',canWrite:true,modal:null,squads:{},sq:null,sqQ:0,sqSel:null,sqBench:'att',sqDirty:0};
+  sort:{k:'pts',d:-1},season:'all',pfilter:'active',psort:'num',canWrite:true,modal:null,squads:{},sq:null,sqQ:0,sqSel:null,sqBench:'att',sqDirty:0,mx:'',cfg:null};
 let db=null,dl=null,pending=false;
 const LS='onefc_v1';
+const DEFCFG=()=>({awards:[{id:'a1',name:'득점왕',metric:'g'},{id:'a2',name:'도움왕',metric:'a'},{id:'a3',name:'공격포인트왕',metric:'pts'},{id:'a4',name:'출석왕',metric:'att'},{id:'a5',name:'MVP왕',metric:'mvp'}],stats:[]});
+const BASEM=[['g','골'],['a','어시스트'],['pts','공격포인트'],['att','출석 횟수'],['rate','출석률(%)'],['mvp','MVP 횟수']];
+function metrics(){return BASEM.concat((S.cfg.stats||[]).map(x=>['x:'+x.id,x.name]));}
+function mName(m){const f=metrics().find(x=>x[0]===m);return f?f[1]:'(삭제된 항목)';}
+function mVal(r,m){return m.startsWith('x:')?((r.x||{})[m.slice(2)]||0):(r[m]||0);}
+function ranking(rows,m){
+  const list=rows.map(r=>({p:r.p,v:mVal(r,m)})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v||byNum(a.p,b.p));
+  const out=[];let rank=0,prev=null;
+  list.forEach((x,i)=>{if(x.v!==prev){rank=i+1;prev=x.v;}if(rank>3)return;let g=out.find(o=>o.rank===rank);if(!g){g={rank,v:x.v,ps:[]};out.push(g);}g.ps.push(x.p);});
+  return out;
+}
+const fmtV=(m,v)=>m==='rate'?v+'%':v;
 
 /* ---------- storage ---------- */
-function loadLocal(){try{const o=JSON.parse(localStorage.getItem(LS)||'{}');S.players=o.players||{};S.matches=o.matches||{};S.squads=o.squads||{};for(const c of ['players','matches','squads'])for(const k in S[c])S[c][k].id=k;}catch(e){}}
-function saveLocal(){try{localStorage.setItem(LS,JSON.stringify({players:S.players,matches:S.matches,squads:S.squads}));}catch(e){}}
+function loadLocal(){try{const o=JSON.parse(localStorage.getItem(LS)||'{}');S.players=o.players||{};S.matches=o.matches||{};S.squads=o.squads||{};S.cfg=o.cfg||DEFCFG();for(const c of ['players','matches','squads'])for(const k in S[c])S[c][k].id=k;}catch(e){}}
+function saveLocal(){try{localStorage.setItem(LS,JSON.stringify({players:S.players,matches:S.matches,squads:S.squads,cfg:S.cfg}));}catch(e){}}
 async function put(col,id,data){
   const body=JSON.parse(JSON.stringify(data));delete body.id;
   if(db){await db.doc(col+'/'+id).set(body);}
@@ -231,6 +257,7 @@ async function init(){
   try{if(localStorage.getItem(LS)==null){fresh=true;localStorage.setItem(LS,JSON.stringify({players:SEED,matches:{},squads:{}}));}}catch(e){fresh=true;}
   loadLocal();
   if(fresh&&!Object.keys(S.players).length){S.players=JSON.parse(JSON.stringify(SEED));for(const k in S.players)S.players[k].id=k;}
+  if(!S.cfg)S.cfg=DEFCFG();
   S.loaded=true;
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
   render();
@@ -270,9 +297,9 @@ function matchesIn(season){
 function calc(season){
   const ms=matchesIn(season);
   return Object.values(S.players).map(p=>{
-    let el=0,att=0,g=0,a=0,mvp=0;
-    ms.forEach(m=>{const r=(m.rec||{})[p.id];if(eligible(p,m.date)||r)el++;if(r&&r.a)att++;if(r){g+=r.g||0;a+=r.s||0;}if(m.mvp===p.id)mvp++;});
-    return {p,el,att,rate:el?Math.round(att/el*100):0,g,a,pts:g+a,mvp};
+    let el=0,att=0,g=0,a=0,mvp=0;const x={};
+    ms.forEach(m=>{const r=(m.rec||{})[p.id];if(eligible(p,m.date)||r)el++;if(r&&r.a)att++;if(r){g+=r.g||0;a+=r.s||0;if(r.x)for(const k in r.x)x[k]=(x[k]||0)+(r.x[k]||0);}if(m.mvp===p.id)mvp++;});
+    return {p,el,att,rate:el?Math.round(att/el*100):0,g,a,pts:g+a,mvp,x};
   });
 }
 
@@ -323,14 +350,17 @@ function viewMatch(ro){
     o+=`<div class="sec"><div class="empty">아직 선수가 없어요.<br>받은 <b>ONE_FC_명단.json</b> 파일을 선수 명단 탭 맨 아래 <b>백업 불러오기</b>로 넣어주세요.<br><br><button class="btn pri" data-a="tab" data-v="players">선수 명단 등록하러 가기</button></div></div>`;
     return o+saveBar(ro);
   }
-  o+=`<div class="sec"><div class="phead"><div>선수</div><div>출석</div><div>골</div><div>어시</div><div>MVP</div></div>`;
+  const XS=S.cfg.stats||[];if(S.mx&&!XS.find(x=>x.id===S.mx))S.mx='';
+  const mx=S.mx?XS.find(x=>x.id===S.mx):null;
+  o+=`<div class="sec">${XS.length?`<div class="chips" style="padding-top:12px"><span style="font-size:12px;color:var(--mute);align-self:center;flex:none">입력 항목</span><button class="chip ${!mx?'on':''}" data-a="mx" data-v="">골·어시</button>${XS.map(x=>`<button class="chip ${mx&&mx.id===x.id?'on':''}" data-a="mx" data-v="${x.id}">${h(x.name)}</button>`).join('')}</div>`:''}
+   <div class="phead"><div>선수</div><div>출석</div>${mx?`<div style="grid-column:span 2">${h(mx.name)}</div>`:'<div>골</div><div>어시</div>'}<div>MVP</div></div>`;
   roster.forEach(p=>{
     const r=d.rec[p.id]||{};const on=!!r.a;
     const isNew=p.joinDate&&daysSince(p.joinDate)<=30&&daysSince(p.joinDate)>=0;
     o+=`<div class="prow ${on?'':'off'}"><div class="nm ${ro?'':'ed'}" ${ro?'':`data-a="editp" data-v="${p.id}"`}><span class="no">${h(p.number)}</span><span class="t">${h(p.name)}</span>${isNew?'<span class="tag new">신규</span>':''}</div>
      <button class="att ${on?'on':''}" data-a="att" data-v="${p.id}">${on?'O':'–'}</button>
-     <div class="stp"><button data-a="g-" data-v="${p.id}">−</button><b class="${r.g?'':'z'}">${r.g||0}</b><button data-a="g+" data-v="${p.id}">+</button></div>
-     <div class="stp"><button data-a="s-" data-v="${p.id}">−</button><b class="${r.s?'':'z'}">${r.s||0}</b><button data-a="s+" data-v="${p.id}">+</button></div>
+     ${mx?(()=>{const xv=(r.x||{})[mx.id]||0;return `<div class="stp wide"><button data-a="x-" data-v="${p.id}">−</button><b class="${xv?'':'z'}">${xv}</b><button data-a="x+" data-v="${p.id}">+</button></div>`;})():`<div class="stp"><button data-a="g-" data-v="${p.id}">−</button><b class="${r.g?'':'z'}">${r.g||0}</b><button data-a="g+" data-v="${p.id}">+</button></div>
+     <div class="stp"><button data-a="s-" data-v="${p.id}">−</button><b class="${r.s?'':'z'}">${r.s||0}</b><button data-a="s+" data-v="${p.id}">+</button></div>`}
      <button class="star ${d.mvp===p.id?'on':''}" data-a="mvp" data-v="${p.id}">★</button></div>`;
   });
   if(!ro)o+=`<div class="addrow"><button class="btn" data-a="addp">+ 선수 추가</button><span style="width:8px"></span><span style="font-size:12px;color:var(--mute);align-self:center">이름 누르면 등번호·정보 수정</span></div>`;
@@ -350,19 +380,20 @@ function viewStats(){
   const ms=matchesIn(S.season);
   const rows=calc(S.season).filter(r=>r.el>0||r.att>0||r.p.status!=='left');
   const k=S.sort.k,dir=S.sort.d;
-  const val=r=>k==='name'?r.p.name:k==='num'?numKey(r.p):r[k];
+  const val=r=>k==='name'?r.p.name:k==='num'?numKey(r.p):mVal(r,k);
   rows.sort((a,b)=>{const x=val(a),y=val(b);if(typeof x==='string')return dir*x.localeCompare(y,'ko');return dir*(x-y)||(b.pts-a.pts)||byNum(a.p,b.p);});
   const top=(f)=>{const m=Math.max(0,...rows.map(f));if(!m)return null;const w=rows.filter(r=>f(r)===m);return {v:m,n:w.map(r=>r.p.name).join(', ')};};
-  const L=[['득점왕',top(r=>r.g),'골'],['도움왕',top(r=>r.a),'도움'],['MVP',top(r=>r.mvp),'회'],['출석왕',top(r=>r.att),'회']];
+  
   let o=`<div class="sec"><div class="chips" style="padding-top:12px"><button class="chip ${S.season==='all'?'on':''}" data-a="season" data-v="all">전체</button>${ss.map(y=>`<button class="chip ${S.season===y?'on':''}" data-a="season" data-v="${y}">${y}시즌</button>`).join('')}</div>
-   <div class="lead">${L.map(([t,x,u])=>`<div><span>${t}</span><b>${x?h(x.n):'-'}</b><i>${x?x.v:0}</i> <span>${u}</span></div>`).join('')}</div></div>`;
-  const H=[['name','선수'],['att','출석'],['rate','출석률'],['g','골'],['a','어시'],['pts','공격P'],['mvp','MVP']];
+   <div style="display:flex;align-items:center;padding:0 14px 10px"><h2 style="padding:0;flex:1">🏆 시상 현황 <span style="font-weight:400;font-size:12px;color:var(--mute)">${S.season==='all'?'전체':S.season+'시즌'} · 현재까지</span></h2>${S.canWrite?'<button class="btn" data-a="awcfg">시상 항목 편집</button>':''}</div>
+   <div class="awg">${S.cfg.awards.map(aw=>{const rk=ranking(rows,aw.metric);return `<div class="aw"><h4>${h(aw.name)}<span>${h(mName(aw.metric))}</span></h4>${rk.length?rk.map(g=>`<div class="rk"><span class="md">${['🥇','🥈','🥉'][g.rank-1]}</span><span class="nmz">${g.ps.map(p=>h(pname(p))).join(', ')}${g.ps.length>1?' <span style="font-size:11px;color:var(--mute)">(공동)</span>':''}</span><b class="v">${fmtV(aw.metric,g.v)}</b></div>`).join(''):'<div style="font-size:13px;color:var(--mute);padding:4px 0">아직 기록 없음</div>'}</div>`;}).join('')}</div></div>`;
+  const H=[['name','선수'],['att','출석'],['rate','출석률'],['g','골'],['a','어시'],['pts','공격P'],['mvp','MVP']].concat((S.cfg.stats||[]).map(x=>['x:'+x.id,x.name]));
   o+=`<div class="sec"><h2>개인 누적 기록 <span style="font-weight:400;font-size:12px;color:var(--mute)">· ${ms.length}경기 · 제목 눌러 정렬</span></h2><div class="tblw"><table class="tbl"><thead><tr>${H.map(([key,t])=>`<th data-a="sort" data-v="${key}" class="${k===key?'s':''}">${t}${k===key?(dir<0?' ▼':' ▲'):''}</th>`).join('')}</tr></thead><tbody>`;
   rows.forEach(r=>{
     o+=`<tr><td><span style="color:var(--b);font-family:Oswald;margin-right:6px">${h(r.p.number)}</span><b>${h(r.p.name)}</b>${r.p.status==='left'?' <span class="tag left">탈퇴</span>':''}</td>
-      <td class="k">${r.att}<span style="color:var(--mute);font-size:11px">/${r.el}</span></td><td>${r.rate}%</td><td class="k">${r.g}</td><td class="k">${r.a}</td><td class="k"><b>${r.pts}</b></td><td class="k">${r.mvp}</td></tr>`;
+      <td class="k">${r.att}<span style="color:var(--mute);font-size:11px">/${r.el}</span></td><td>${r.rate}%</td><td class="k">${r.g}</td><td class="k">${r.a}</td><td class="k"><b>${r.pts}</b></td><td class="k">${r.mvp}</td>${(S.cfg.stats||[]).map(x=>`<td class="k">${(r.x||{})[x.id]||0}</td>`).join('')}</tr>`;
   });
-  if(!rows.length)o+=`<tr><td colspan="7" class="empty">기록이 없어요</td></tr>`;
+  if(!rows.length)o+=`<tr><td colspan="${H.length}" class="empty">기록이 없어요</td></tr>`;
   o+=`</tbody></table></div></div>`;
   o+=`<div class="sec"><h2>경기 기록</h2><div class="mlist">`;
   if(!ms.length)o+=`<div class="empty">저장된 경기가 없어요</div>`;
@@ -593,6 +624,17 @@ function renderModal(){
      </div>
      <div style="font-size:12px;color:var(--mute);margin-top:8px">가입일 이후 경기부터 출석률 계산에 들어가요. 비워두면 기존 멤버로 처리돼요.</div>
      <div class="mact">${isNew?'':'<button class="btn red" data-a="delp">삭제</button>'}<button class="btn ghost" data-a="close">취소</button><button class="btn pri" data-a="savep">저장</button></div>`;
+  }else if(M.type==='awcfg'){
+    const C=M.cfg;const ms=BASEM.concat(C.stats.map(x=>['x:'+x.id,x.name||'(이름 없음)']));
+    b=`<h3>시상 항목 편집</h3>
+     <div style="font-size:12px;color:var(--mute);margin-bottom:10px">상 이름과 무엇으로 순위를 매길지 고르세요. 기록 탭과 엑셀에 1·2·3위가 자동으로 나와요.</div>
+     ${C.awards.map((aw,i)=>`<div class="cfgrow"><input class="aw-name" data-i="${i}" value="${h(aw.name)}" placeholder="상 이름"><select class="aw-metric" data-i="${i}">${ms.map(([k,t])=>`<option value="${k}" ${aw.metric===k?'selected':''}>${h(t)}</option>`).join('')}</select><button class="x" data-a="awdel" data-v="${i}">×</button></div>`).join('')}
+     <button class="btn" data-a="awadd">+ 시상 항목 추가</button>
+     <h3 style="margin-top:22px">추가 기록 항목</h3>
+     <div style="font-size:12px;color:var(--mute);margin-bottom:10px">골·어시 말고 따로 세고 싶은 것 (예: 클린시트, 선방, 자책골, 매너상 점수). 추가하면 경기 입력 화면에서 숫자를 올릴 수 있고, 시상 기준으로도 고를 수 있어요.</div>
+     ${C.stats.map((x,i)=>`<div class="cfgrow"><input class="sx-name" data-i="${i}" value="${h(x.name)}" placeholder="항목 이름"><button class="x" data-a="sxdel" data-v="${i}">×</button></div>`).join('')}
+     <button class="btn" data-a="sxadd">+ 기록 항목 추가</button>
+     <div class="mact"><button class="btn ghost" data-a="close">취소</button><button class="btn pri" data-a="awsave">저장</button></div>`;
   }else if(M.type==='pick'){
     const q=S.sq.quarters[S.sqQ],F=FORM[q.f],i=M.i;const {ps,att}=benchPlayers();
     const cnt={};S.sq.quarters.forEach(x=>x.s.forEach(id=>{if(id)cnt[id]=(cnt[id]||0)+1;}));
@@ -663,14 +705,28 @@ function prepRows(rows){
 async function doExport(){
   if(!window.XLSX){toast('엑셀 모듈을 불러오는 중이에요. 잠시 후 다시 눌러주세요','err');return;}
   if(!dl){toast('이 화면에서는 파일 저장이 안 돼요. claude.ai에서 열어주세요','err');return;}
-  const season=S.tab==='stats'?S.season:'all';
+  const season=S.season;
   const ms=matchesIn(season);
   const st=calc(season).sort((a,b)=>b.pts-a.pts||b.g-a.g||byNum(a.p,b.p));
   const players=Object.values(S.players).sort(byNum);
   const wb=XLSX.utils.book_new();
   const add=(name,aoa,w)=>{const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=aoa[0].map((_,i)=>({wch:w[i]||w[w.length-1]}));XLSX.utils.book_append_sheet(wb,ws,name);};
-  add('누적기록',[['순위','등번호','이름','역할','가입일','상태','참여가능경기','출석','출석률(%)','골','어시스트','공격포인트','MVP'],
-    ...st.map((r,i)=>[i+1,r.p.number,r.p.name,r.p.role||'',r.p.joinDate||'기존',r.p.status==='left'?'탈퇴':'활동',r.el,r.att,r.rate,r.g,r.a,r.pts,r.mvp])],[6,7,10,6,12,6,12,6,10,6,9,11,6]);
+  const XS=S.cfg.stats||[];
+  const main=[['순위','등번호','이름','역할','가입일','상태','참여가능경기','출석','출석률(%)','골','어시스트','공격포인트','MVP',...XS.map(x=>x.name)],
+    ...st.map((r,i)=>[i+1,r.p.number,r.p.name,r.p.role||'',r.p.joinDate||'기존',r.p.status==='left'?'탈퇴':'활동',r.el,r.att,r.rate,r.g,r.a,r.pts,r.mvp,...XS.map(x=>(r.x||{})[x.id]||0)])];
+  const label=season==='all'?'전체':season+'시즌';
+  const blk=[[`🏆 시상 순위 (${label} · ${fmtD(today())} 기준)`,'','',''],['','','','']];
+  S.cfg.awards.forEach(aw=>{
+    const rk=ranking(st,aw.metric);
+    blk.push([aw.name,`기준: ${mName(aw.metric)}`,'','']);blk.push(['순위','이름','등번호','기록']);
+    if(!rk.length)blk.push(['-','기록 없음','','']);
+    rk.forEach(g=>g.ps.forEach(p=>blk.push([g.rank+'위'+(g.ps.length>1?' (공동)':''),p.name,p.number,fmtV(aw.metric,g.v)])));
+    blk.push(['','','','']);
+  });
+  {const ws=XLSX.utils.aoa_to_sheet(main);const c0=main[0].length+1;XLSX.utils.sheet_add_aoa(ws,blk,{origin:{r:0,c:c0}});
+   const w=[6,7,10,6,12,6,12,6,10,6,9,11,6,...XS.map(()=>10)];ws['!cols']=[...w.map(x=>({wch:x})),{wch:3},{wch:16},{wch:14},{wch:7},{wch:8}];
+   XLSX.utils.book_append_sheet(wb,ws,'누적기록');}
+  {const ws=XLSX.utils.aoa_to_sheet(blk);ws['!cols']=[{wch:16},{wch:14},{wch:7},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'시상');}
   const dh=ms.map(m=>m.date.slice(2).replace(/-/g,'.'));
   const grid=(f,sum)=>[['등번호','이름','가입일',...dh,'합계'],...players.map(p=>{let t=0;const cells=ms.map(m=>{const r=(m.rec||{})[p.id];const v=f(r,m,p);if(typeof v==='number')t+=v;else if(v==='O')t++;return v;});return [p.number,p.name,p.joinDate||'기존',...cells,t];})];
   add('출석부',grid((r,m,p)=>r&&r.a?'O':(eligible(p,m.date)||r?'':'-')),[7,10,12,9]);
@@ -704,7 +760,7 @@ document.addEventListener('click',async e=>{
     case 'allatt':rosterFor(D).filter(p=>p.status!=='left').forEach(p=>rec(p.id).a=true);setDirty();render();break;
     case 'clear':D.rec={};D.mvp='';setDirty();render();break;
     case 'save':{
-      const clean={};Object.entries(D.rec).forEach(([id,r])=>{if(r.a||r.g||r.s)clean[id]={a:!!r.a,g:r.g||0,s:r.s||0};});
+      const clean={};Object.entries(D.rec).forEach(([id,r])=>{const x={};if(r.x)for(const k in r.x)if(r.x[k]>0)x[k]=r.x[k];const hx=Object.keys(x).length>0;if(r.a||r.g||r.s||hx){clean[id]={a:!!r.a,g:r.g||0,s:r.s||0};if(hx)clean[id].x=x;}});
       const body={date:D.date,opponent:D.opponent.trim(),ours:D.ours===''?'':+D.ours,theirs:D.theirs===''?'':+D.theirs,memo:D.memo.trim(),rec:clean,mvp:D.mvp,updatedAt:new Date().toISOString()};
       t.disabled=true;
       const ok=await safe(()=>put('matches',D.date,body),'저장됐어요 ✓');
@@ -725,9 +781,20 @@ document.addEventListener('click',async e=>{
     case 'editp':if(!S.canWrite)break;openModal({type:'player',p:Object.assign({},S.players[v])});break;
     case 'import':openModal({type:'import'});break;
     case 'export':doExport();break;
-    case 'backup':{const data=JSON.stringify({app:'onefc',v:1,savedAt:new Date().toISOString(),players:S.players,matches:S.matches,squads:S.squads});
+    case 'backup':{const data=JSON.stringify({app:'onefc',v:1,savedAt:new Date().toISOString(),players:S.players,matches:S.matches,squads:S.squads,cfg:S.cfg});
       try{await saveFile(`ONE_FC_백업_${today().replace(/-/g,'')}.json`,new Blob([data],{type:'application/json'}));try{localStorage.setItem('onefc_lastbackup',today());}catch(e){}toast('백업 파일 저장 완료');render();}catch(e){if(!(e&&e.code==='declined'))toast('백업 저장 실패','err');}break;}
     case 'noop':break;
+    case 'mx':S.mx=v;render();break;
+    case 'x+':case 'x-':{const r=rec(v);r.x=r.x||{};const c=(r.x[S.mx]||0)+(a==='x+'?1:-1);r.x[S.mx]=Math.max(0,c);if(a==='x+')r.a=true;setDirty();render();break;}
+    case 'awcfg':openModal({type:'awcfg',cfg:JSON.parse(JSON.stringify(S.cfg))});break;
+    case 'awadd':S.modal.cfg.awards.push({id:'a'+Date.now().toString(36),name:'',metric:'g'});renderModal();break;
+    case 'awdel':S.modal.cfg.awards.splice(+v,1);renderModal();break;
+    case 'sxadd':S.modal.cfg.stats.push({id:'x'+Date.now().toString(36),name:''});renderModal();break;
+    case 'sxdel':{const C=S.modal.cfg;const id=C.stats[+v].id;C.stats.splice(+v,1);C.awards=C.awards.filter(aw=>aw.metric!=='x:'+id);renderModal();break;}
+    case 'awsave':{const C=S.modal.cfg;C.stats=C.stats.filter(x=>x.name.trim());C.stats.forEach(x=>x.name=x.name.trim());
+      const ok=new Set(['g','a','pts','att','rate','mvp',...C.stats.map(x=>'x:'+x.id)]);
+      C.awards=C.awards.filter(aw=>aw.name.trim()&&ok.has(aw.metric));C.awards.forEach(aw=>aw.name=aw.name.trim());
+      S.cfg=C;saveLocal();closeModal();render();toast('시상 항목 저장됨');break;}
     case 'sqq':S.sqQ=+v;S.sqSel=null;render();break;
     case 'sqadd':S.sq.quarters.push(newQ(S.sq.quarters[S.sq.quarters.length-1].f));S.sqQ=S.sq.quarters.length-1;S.sqTouched=true;sqChanged();render();break;
     case 'sqdel':openModal({type:'confirm',title:'마지막 쿼터 삭제',msg:`${S.sq.quarters.length}쿼터 배치를 지울까요?`,ok:'삭제',danger:true,fn:()=>{S.sq.quarters.pop();S.sqQ=Math.min(S.sqQ,S.sq.quarters.length-1);sqChanged();render();}});break;
@@ -771,7 +838,8 @@ document.addEventListener('click',async e=>{
   }
 });
 document.addEventListener('input',e=>{
-  const id=e.target.id,D=S.draft;
+  const id=e.target.id,D=S.draft,cl=e.target.classList;
+  if(S.modal&&S.modal.type==='awcfg'){const i=+e.target.dataset.i;if(cl.contains('aw-name'))S.modal.cfg.awards[i].name=e.target.value;else if(cl.contains('sx-name'))S.modal.cfg.stats[i].name=e.target.value;return;}
   if(id==='mopp'){D.opponent=e.target.value;setDirty();}
   else if(id==='mours'){D.ours=e.target.value;setDirty();}
   else if(id==='mtheirs'){D.theirs=e.target.value;setDirty();}
@@ -789,7 +857,7 @@ document.addEventListener('change',async e=>{
     try{const o=JSON.parse(await f.text());if(o.app!=='onefc'||!o.players)throw 0;
       const np=Object.keys(o.players).length,nm=Object.keys(o.matches||{}).length;
       openModal({type:'confirm',title:'백업 불러오기',msg:`선수 ${np}명, 경기 ${nm}개 기록을 불러와요. 지금 이 폰에 있는 기록은 백업 내용으로 바뀌어요.`,ok:'불러오기',danger:true,fn:()=>{
-        S.players=o.players;S.matches=o.matches||{};S.squads=o.squads||{};for(const c of ['players','matches','squads'])for(const k in S[c])S[c][k].id=k;
+        S.players=o.players;S.matches=o.matches||{};S.squads=o.squads||{};if(o.cfg)S.cfg=o.cfg;for(const c of ['players','matches','squads'])for(const k in S[c])S[c][k].id=k;
         saveLocal();S.draft=null;S.sq=null;render();toast('백업을 불러왔어요');}});
     }catch(err){toast('ONE FC 백업 파일이 아니에요','err');}
     e.target.value='';
@@ -800,6 +868,7 @@ document.addEventListener('change',async e=>{
   }else if(id==='sqf'){
     const q=S.sq.quarters[S.sqQ];const ids=q.s;q.f=e.target.value;const n=FORM[q.f].p.length;q.s=ids.slice(0,n);while(q.s.length<n)q.s.push('');
     sqChanged();pending=false;render();
+  }else if(e.target.classList.contains('aw-metric')){S.modal.cfg.awards[+e.target.dataset.i].metric=e.target.value;
   }else if(id==='fp_st'){$('#fp_leftw').style.display=e.target.value==='left'?'':'none';}
   else if(e.target.classList.contains('fi_chk')){S.modal.rows[+e.target.dataset.i].on=e.target.checked;const n=S.modal.rows.filter(r=>r.on).length;const b=document.querySelector('[data-a="doimport"]');if(b)b.textContent=n+'명 추가';}
   else if(id==='fi_def'){S.modal.def=e.target.value;}
