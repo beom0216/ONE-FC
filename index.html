@@ -350,7 +350,7 @@ function viewMatch(ro){
    </div></div>`;
   if(recent.length)o+=`<div class="chips">${recent.map(k=>`<button class="chip ${k===d.date?'on':''}" data-a="jump" data-v="${k}">${fmtD(k).slice(2)} (${dow(k)})</button>`).join('')}</div>`;
   o+=`<div class="sum"><div><b>${attN}</b><span>출석 / ${roster.length}명</span></div><div><b>${gN}</b><span>득점</span></div><div><b>${sN}</b><span>어시스트</span></div><div><b style="font-size:15px;font-family:'Noto Sans KR';line-height:1.9">${d.mvp?h(pname(S.players[d.mvp])):'-'}</b><span>MVP</span></div></div>`;
-  if(!ro)o+=`<div class="row" style="padding:0 14px 12px"><button class="btn" data-a="allatt">전원 출석</button><button class="btn ghost" data-a="clear">초기화</button>${exists?'<span style="flex:1"></span><button class="btn red" data-a="delmatch">경기 삭제</button>':''}</div>`;
+  if(!ro)o+=`<div class="row" style="padding:0 14px 12px"><button class="btn" data-a="allatt">전원 출석</button><button class="btn ghost" data-a="clear">초기화</button><button class="btn" data-a="mimg">📷 경기 결과</button>${exists?'<span style="flex:1"></span><button class="btn red" data-a="delmatch">경기 삭제</button>':''}</div>`;
   o+=`</div>`;
   if(!Object.keys(S.players).length){
     o+=`<div class="sec"><div class="empty">아직 선수가 없어요.<br>받은 <b>ONE_FC_명단.json</b> 파일을 선수 명단 탭 맨 아래 <b>백업 불러오기</b>로 넣어주세요.<br><br><button class="btn pri" data-a="tab" data-v="players">선수 명단 등록하러 가기</button></div></div>`;
@@ -395,9 +395,9 @@ function viewStats(){
    <div class="row" style="padding:0 14px 12px"><button class="btn pri" data-a="rkimg">📷 순위 이미지 공유</button>${S.canWrite?'<button class="btn" data-a="awcfg">시상 항목 편집</button>':''}</div>
    <div class="awg">${S.cfg.awards.map(aw=>{const rk=ranking(rows,aw.metric);return `<div class="aw"><h4>${h(aw.name)}<span>${h(mName(aw.metric))}</span></h4>${rk.length?rk.map(g=>`<div class="rk"><span class="md">${medal(g.rank)}</span><span class="nmz">${g.ps.slice(0,8).map(p=>h(pname(p))).join(', ')}${g.ps.length>8?` 외 ${g.ps.length-8}명`:''}${g.ps.length>1?` <span style="font-size:11px;color:var(--mute)">(공동 ${g.ps.length}명)</span>`:''}</span><b class="v">${fmtV(aw.metric,g.v)}</b></div>`).join(''):'<div style="font-size:13px;color:var(--mute);padding:4px 0">아직 기록 없음</div>'}</div>`;}).join('')}</div></div>`;
   const H=[['name','선수'],['att','출석'],['rate','출석률'],['g','골'],['a','어시'],['pts','공격P'],['mvp','MVP']].concat((S.cfg.stats||[]).map(x=>['x:'+x.id,x.name]));
-  o+=`<div class="sec"><h2>개인 누적 기록 <span style="font-weight:400;font-size:12px;color:var(--mute)">· ${ms.length}경기 · 제목 눌러 정렬</span></h2><div class="tblw"><table class="tbl"><thead><tr>${H.map(([key,t])=>`<th data-a="sort" data-v="${key}" class="${k===key?'s':''}">${t}${k===key?(dir<0?' ▼':' ▲'):''}</th>`).join('')}</tr></thead><tbody>`;
+  o+=`<div class="sec"><h2>개인 누적 기록 <span style="font-weight:400;font-size:12px;color:var(--mute)">· ${ms.length}경기 · 제목 눌러 정렬 · 이름 누르면 선수 카드</span></h2><div class="tblw"><table class="tbl"><thead><tr>${H.map(([key,t])=>`<th data-a="sort" data-v="${key}" class="${k===key?'s':''}">${t}${k===key?(dir<0?' ▼':' ▲'):''}</th>`).join('')}</tr></thead><tbody>`;
   rows.forEach(r=>{
-    o+=`<tr><td><span style="color:var(--b);font-family:Oswald;margin-right:6px">${h(r.p.number)}</span><b>${h(r.p.name)}</b>${r.p.status==='left'?' <span class="tag left">탈퇴</span>':''}</td>
+    o+=`<tr><td data-a="pcard" data-v="${r.p.id}" style="cursor:pointer"><span style="color:var(--b);font-family:Oswald;margin-right:6px">${h(r.p.number)}</span><b>${h(r.p.name)}</b>${r.p.status==='left'?' <span class="tag left">탈퇴</span>':''}</td>
       <td class="k">${r.att}<span style="color:var(--mute);font-size:11px">/${r.el}</span></td><td>${r.rate}%</td><td class="k">${r.g}</td><td class="k">${r.a}</td><td class="k"><b>${r.pts}</b></td><td class="k">${r.mvp}</td>${(S.cfg.stats||[]).map(x=>`<td class="k">${(r.x||{})[x.id]||0}</td>`).join('')}</tr>`;
   });
   if(!rows.length)o+=`<tr><td colspan="${H.length}" class="empty">기록이 없어요</td></tr>`;
@@ -655,6 +655,78 @@ async function showRankImage(){
   cv.toBlob(b=>openModal({type:'img',url,name,blob:b,title:'순위 이미지'}),'image/png');
 }
 
+/* ---------- fun images ---------- */
+const FNT='"Noto Sans KR","Noto Sans CJK KR",sans-serif';
+function cvs(W,H){const cv=document.createElement('canvas');cv.width=W;cv.height=H;return [cv,cv.getContext('2d')];}
+function rrect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function fitT(c,t,mw){t=String(t);if(c.measureText(t).width<=mw)return t;while(t.length>1&&c.measureText(t+'…').width>mw)t=t.slice(0,-1);return t+'…';}
+function bgPitch(c,W,H){const g=c.createLinearGradient(0,0,W,H);g.addColorStop(0,'#061633');g.addColorStop(.55,'#0b3a87');g.addColorStop(1,'#1f6fe0');c.fillStyle=g;c.fillRect(0,0,W,H);
+  c.strokeStyle='rgba(255,255,255,.06)';c.lineWidth=6;c.beginPath();c.arc(W/2,H/2,W*.28,0,Math.PI*2);c.stroke();c.beginPath();c.moveTo(0,H/2);c.lineTo(W,H/2);c.stroke();c.strokeRect(W*.2,-6,W*.6,H*.16);c.strokeRect(W*.2,H*.84,W*.6,H*.16+6);}
+async function finishImg(cv,name,title){const url=cv.toDataURL('image/png');cv.toBlob(b=>openModal({type:'img',url,name,blob:b,title}),'image/png');}
+function nmOf(p){if(!p)return '?';const dup=Object.values(S.players).filter(x=>x.name===p.name).length>1;return dup?p.name+'#'+p.number:p.name;}
+async function matchImage(){
+  try{await document.fonts.ready;}catch(e){}
+  const d=S.draft;const rec=d.rec||{};const W=1080,H=1350;const [cv,c]=cvs(W,H);bgPitch(c,W,H);
+  c.textAlign='center';c.fillStyle='rgba(255,255,255,.7)';c.font='700 30px Oswald, '+FNT;c.fillText('ONE FC · MATCH REPORT',W/2,90);
+  c.fillStyle='#fff';c.font='500 34px '+FNT;c.fillText(`${fmtD(d.date)} (${dow(d.date)})${d.opponent?'  ·  '+d.opponent:''}`,W/2,145);
+  const hasScore=d.ours!==''&&d.ours!=null;
+  const gs=Object.entries(rec).filter(([,r])=>r.g).sort((a,b)=>b[1].g-a[1].g);
+  const as=Object.entries(rec).filter(([,r])=>r.s).sort((a,b)=>b[1].s-a[1].s);
+  const att=Object.values(rec).filter(r=>r.a).length;const tg=Object.values(rec).reduce((s,r)=>s+(r.g||0),0);
+  if(hasScore){
+    const o=+d.ours,t=d.theirs===''||d.theirs==null?null:+d.theirs;
+    c.font='700 190px Oswald, '+FNT;c.fillText(`${o} : ${t==null?'-':t}`,W/2,370);
+    c.font='700 30px '+FNT;c.fillStyle='rgba(255,255,255,.75)';c.fillText('ONE FC',W/2-215,410);c.fillText(fitT(c,d.opponent||'상대팀',260),W/2+215,410);
+    if(t!=null){const [lab,col]=o>t?['승리','#22c55e']:o<t?['패배','#ef4444']:['무승부','#9aa6b6'];c.font='900 34px '+FNT;const w=c.measureText(lab).width+56;rrect(c,W/2-w/2,430,w,58,29);c.fillStyle=col;c.fill();c.fillStyle='#fff';c.fillText(lab,W/2,471);}
+  }else{c.font='700 150px Oswald, '+FNT;c.fillText(`${tg} GOALS`,W/2,360);}
+  // scorers / assists panel
+  const px=70,pw=W-140;let y=530;rrect(c,px,y,pw,330,30);c.fillStyle='rgba(255,255,255,.95)';c.fill();
+  const line=(icon,label,list,key,yy)=>{c.textAlign='left';c.fillStyle='#0b4fb3';c.font='900 34px '+FNT;c.fillText(icon+' '+label,px+40,yy);
+    c.fillStyle='#0d1b2e';c.font='700 34px '+FNT;
+    const txt=list.length?list.map(([id,r])=>nmOf(S.players[id])+(r[key]>1?' ×'+r[key]:'')).join(',  '):'-';
+    const words=txt.split(',  ');let ln='',ly=yy+56,lines=0;
+    for(const w of words){const tt=ln?ln+',  '+w:w;if(c.measureText(tt).width>pw-80&&ln){c.fillText(ln+',',px+40,ly);ln=w;ly+=48;lines++;if(lines>=1){break;}}else ln=tt;}
+    if(ln)c.fillText(fitT(c,ln,pw-80),px+40,ly);};
+  line('⚽','득점',gs,'g',y+70);line('🅰️','도움',as,'s',y+225);
+  // MVP spotlight
+  y=900;const mp=S.players[d.mvp];
+  rrect(c,px,y,pw,300,30);const gg=c.createLinearGradient(px,y,px+pw,y+300);gg.addColorStop(0,'#f6c343');gg.addColorStop(1,'#e09400');c.fillStyle=gg;c.fill();
+  c.textAlign='left';c.fillStyle='rgba(60,35,0,.75)';c.font='900 30px '+FNT;c.fillText('★ MATCH MVP',px+44,y+64);
+  if(mp){const r=rec[d.mvp]||{};
+    c.beginPath();c.arc(px+130,y+180,78,0,Math.PI*2);c.fillStyle='#071c3f';c.fill();c.lineWidth=8;c.strokeStyle='#fff';c.stroke();
+    c.fillStyle='#fff';c.textAlign='center';c.font='700 66px Oswald, '+FNT;c.fillText(mp.number||'',px+130,y+204);
+    c.textAlign='left';c.fillStyle='#2a1a00';c.font='900 76px '+FNT;c.fillText(fitT(c,mp.name,pw-300),px+250,y+180);
+    c.font='700 34px '+FNT;c.fillStyle='rgba(42,26,0,.8)';c.fillText(`골 ${r.g||0}  ·  어시 ${r.s||0}`,px+254,y+236);
+  }else{c.fillStyle='#2a1a00';c.font='700 44px '+FNT;c.fillText('MVP 미선정',px+44,y+170);}
+  c.textAlign='center';c.fillStyle='rgba(255,255,255,.85)';c.font='700 32px '+FNT;c.fillText(`출석 ${att}명  ·  팀 득점 ${tg}`,W/2,1275);
+  finishImg(cv,`ONE_FC_경기결과_${d.date.replace(/-/g,'')}.png`,'경기 결과 카드');
+}
+async function playerCard(pid){
+  try{await document.fonts.ready;}catch(e){}
+  const p=S.players[pid];if(!p)return;const season=S.season;
+  const rows=calc(season);const r=rows.find(x=>x.p.id===pid);
+  const titles=[];S.cfg.awards.forEach(aw=>{const rk=ranking(rows,aw.metric);const g=rk.find(g=>g.ps.some(x=>x.id===pid));if(g)titles.push([g.rank,aw.name]);});
+  titles.sort((a,b)=>a[0]-b[0]);
+  const W=1080,H=1350;const [cv,c]=cvs(W,H);bgPitch(c,W,H);
+  const cx=150,cy=110,cw=780,ch=1130;
+  rrect(c,cx,cy,cw,ch,60);const g=c.createLinearGradient(cx,cy,cx+cw,cy+ch);g.addColorStop(0,'#fff3c4');g.addColorStop(.45,'#f2c94c');g.addColorStop(1,'#c99a1e');c.fillStyle=g;c.fill();
+  c.lineWidth=10;c.strokeStyle='rgba(255,255,255,.7)';rrect(c,cx+22,cy+22,cw-44,ch-44,46);c.stroke();
+  c.textAlign='left';c.fillStyle='#2a1a00';c.font='700 170px Oswald, '+FNT;c.fillText(p.number||'-',cx+70,cy+215);
+  c.font='900 40px '+FNT;c.fillText(p.role==='C'?'CAPTAIN':p.role==='VC'?'VICE CAPTAIN':(p.position||''),cx+76,cy+275);
+  c.textAlign='right';c.font='700 46px Oswald, '+FNT;c.fillText('ONE FC',cx+cw-70,cy+120);
+  c.font='500 28px '+FNT;c.fillText(season==='all'?'전체 기록':season+' 시즌',cx+cw-70,cy+165);
+  c.textAlign='center';c.font='900 110px '+FNT;c.fillText(fitT(c,p.name,cw-120),W/2,cy+450);
+  c.fillStyle='rgba(42,26,0,.25)';c.fillRect(cx+90,cy+495,cw-180,4);
+  const st=[['출석',r?`${r.att}/${r.el}`:'0'],['출석률',(r?r.rate:0)+'%'],['골',r?r.g:0],['어시',r?r.a:0],['공격P',r?r.pts:0],['MVP',r?r.mvp:0]];
+  st.forEach(([k,v],i)=>{const col=i%3,row=Math.floor(i/3);const x=cx+130+col*(cw-260)/2,y=cy+600+row*175;
+    c.fillStyle='#2a1a00';c.font='700 84px Oswald, '+FNT;c.fillText(String(v),x,y);c.font='700 32px '+FNT;c.fillStyle='rgba(42,26,0,.7)';c.fillText(k,x,y+48);});
+  let ty=cy+960;c.font='900 36px '+FNT;
+  if(titles.length){titles.slice(0,3).forEach(([rk,nm],i)=>{c.fillStyle='#2a1a00';c.fillText(`${rk<=3?['🥇','🥈','🥉'][rk-1]:rk+'위'}  ${nm} ${rk}위`,W/2,ty+i*52);});}
+  else{c.fillStyle='rgba(42,26,0,.6)';c.font='700 32px '+FNT;c.fillText(p.joinDate?`${fmtD(p.joinDate)} 입단`:'ONE FC 멤버',W/2,ty+20);}
+  c.fillStyle='rgba(255,255,255,.75)';c.font='500 26px '+FNT;c.fillText(`${fmtD(today())} 기준`,W/2,H-40);
+  finishImg(cv,`ONE_FC_선수카드_${p.name}.png`,'선수 카드');
+}
+
 /* ---------- modal ---------- */
 function renderModal(){
   const M=S.modal,el=$('#modal');
@@ -676,6 +748,7 @@ function renderModal(){
       <div class="field full"><label>메모</label><input id="fp_memo" value="${h(p.memo)}" placeholder="연락처, 특이사항 등"></div>
      </div>
      <div style="font-size:12px;color:var(--mute);margin-top:8px">가입일 이후 경기부터 출석률 계산에 들어가요. 비워두면 기존 멤버로 처리돼요.</div>
+     ${isNew?'':`<button class="btn" style="width:100%;margin-top:12px" data-a="pcard" data-v="${p.id}">📷 선수 카드 만들기</button>`}
      <div class="mact">${isNew?'':'<button class="btn red" data-a="delp">삭제</button>'}<button class="btn ghost" data-a="close">취소</button><button class="btn pri" data-a="savep">저장</button></div>`;
   }else if(M.type==='awcfg'){
     const C=M.cfg;const ms=BASEM.concat(C.stats.map(x=>['x:'+x.id,x.name||'(이름 없음)']));
@@ -844,6 +917,8 @@ document.addEventListener('click',async e=>{
       try{await saveFile(`ONE_FC_백업_${today().replace(/-/g,'')}.json`,new Blob([data],{type:'application/json'}));try{localStorage.setItem('onefc_lastbackup',today());}catch(e){}toast('백업 파일 저장 완료');render();}catch(e){if(!(e&&e.code==='declined'))toast('백업 저장 실패','err');}break;}
     case 'noop':break;
     case 'mx':S.mx=v;render();break;
+    case 'mimg':{t.disabled=true;await matchImage();t.disabled=false;break;}
+    case 'pcard':{await playerCard(v);break;}
     case 'rkimg':{t.disabled=true;await showRankImage();t.disabled=false;break;}
     case 'x+':case 'x-':{const r=rec(v);r.x=r.x||{};const c=(r.x[S.mx]||0)+(a==='x+'?1:-1);r.x[S.mx]=Math.max(0,c);if(a==='x+')r.a=true;setDirty();render();break;}
     case 'awcfg':openModal({type:'awcfg',cfg:JSON.parse(JSON.stringify(S.cfg))});break;
