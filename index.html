@@ -67,17 +67,16 @@ nav button.on{color:#fff;border-bottom-color:#4da3ff}
 .sum div{flex:1;min-width:70px;background:var(--bg);border-radius:10px;padding:8px 10px}
 .sum b{display:block;font-family:Oswald,sans-serif;font-size:22px;line-height:1.1}
 .sum span{font-size:11px;color:var(--mute)}
-.phead,.prow{display:grid;grid-template-columns:minmax(0,1fr) 38px 76px 76px 28px;gap:4px;align-items:center;padding:7px 8px}
+.phead,.prow{display:grid;grid-template-columns:5.3rem 38px minmax(0,1fr) minmax(0,1fr) 28px;gap:5px;align-items:center;padding:7px 8px}
 .phead{font-size:11px;color:var(--mute);font-weight:700;border-bottom:1px solid var(--line);text-align:center;background:#fafbfd}
 .phead div:first-child{text-align:left}
 .prow{border-bottom:1px solid var(--line)}
 .prow.off .nm{opacity:.45}
 .nm{display:flex;align-items:center;gap:5px;min-width:0}
-.prow .nm{flex-direction:column;align-items:flex-start;gap:1px}
-.prow .nm .no{width:auto;font-size:12px;line-height:1.1;text-align:left}
+.prow .nm{gap:4px}
+.prow .nm .no{width:auto;min-width:1.1rem;font-size:15px;text-align:left}
 .prow .nm .t{white-space:normal;word-break:keep-all;overflow-wrap:anywhere;font-size:15px;line-height:1.2}
-@media(max-width:400px){.sec{margin:12px 8px}.phead,.prow{grid-template-columns:minmax(0,1fr) 34px 64px 64px 24px;gap:3px;padding:7px 6px}
- .stp button{width:20px;font-size:16px}.stp b{font-size:16px;min-width:14px}.att{width:34px}.star{width:24px;font-size:20px}.prow .nm .t{font-size:14px}}
+@media(max-width:400px){.sec{margin:12px 8px}.phead,.prow{gap:4px;padding:7px 6px}}
 .no{font-family:Oswald,sans-serif;font-weight:700;font-size:16px;width:24px;text-align:center;color:var(--b);flex:none}
 .nm .t{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tag{font-size:10px;font-weight:900;padding:1px 5px;border-radius:5px;background:var(--navy);color:#fff;flex:none}
