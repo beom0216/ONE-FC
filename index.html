@@ -448,10 +448,11 @@ const FORM={
  '9인 3-4-1':{p:[[50,91],[25,72],[50,75],[75,72],[13,47],[38,50],[62,50],[87,47],[50,19]],l:['GK','DF','DF','DF','MF','MF','MF','MF','FW']},
  '6인 2-2-1':{p:[[50,91],[30,70],[70,70],[30,44],[70,44],[50,19]],l:['GK','DF','DF','MF','MF','FW']}
 };
+const gp=id=>S.players[id]||((S.sq&&S.sq.guests)||[]).find(g=>g.id===id);
 const newQ=f=>({f:f||'4-4-2',s:Array(FORM[f||'4-4-2'].p.length).fill('')});
 function sqOpen(date){
   const x=S.squads[date];
-  S.sq=x?{date,quarters:JSON.parse(JSON.stringify(x.quarters||[]))}:{date,quarters:[newQ(),newQ(),newQ(),newQ()]};
+  S.sq=x?{date,quarters:JSON.parse(JSON.stringify(x.quarters||[])),guests:JSON.parse(JSON.stringify(x.guests||[]))}:{date,quarters:[newQ(),newQ(),newQ(),newQ()],guests:[]};
   S.sq.quarters.forEach(q=>{if(!FORM[q.f])q.f='4-4-2';const n=FORM[q.f].p.length;q.s=(q.s||[]).slice(0,n);while(q.s.length<n)q.s.push('');});
   if(!S.sq.quarters.length)S.sq.quarters.push(newQ());
   if(S.sqQ>=S.sq.quarters.length)S.sqQ=0;
@@ -462,7 +463,7 @@ async function sqSave(){
   if(!S.sq||!S.sqDirty)return;
   if(sqSaving){clearTimeout(sqTimer);sqTimer=setTimeout(sqSave,500);return;}
   sqSaving=true;const mark=S.sqDirty;const sq=S.sq;
-  const ok=await safe(()=>put('squads',sq.date,{date:sq.date,quarters:sq.quarters,updatedAt:new Date().toISOString()}));
+  const ok=await safe(()=>put('squads',sq.date,{date:sq.date,quarters:sq.quarters,guests:sq.guests||[],updatedAt:new Date().toISOString()}));
   sqSaving=false;
   if(ok&&S.sqDirty===mark)S.sqDirty=0;
   if(!ok)S.sqDirty=0;
@@ -478,6 +479,7 @@ function benchPlayers(){
   if(S.sqBench==='att'&&att.size)ps=ps.filter(p=>att.has(p.id));
   const used=new Set(S.sq.quarters.flatMap(q=>q.s).filter(Boolean));
   used.forEach(id=>{if(S.players[id]&&!ps.includes(S.players[id]))ps.push(S.players[id]);});
+  (S.sq.guests||[]).forEach(g=>ps.push(g));
   return {ps:ps.sort(byNum),att};
 }
 function viewSquad(ro){
@@ -497,9 +499,9 @@ function viewSquad(ro){
      <div class="ln" style="left:50%;top:50%;width:26%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%)"></div>
      <div class="ln" style="left:22%;right:22%;top:-2px;height:16%"></div><div class="ln" style="left:37%;right:37%;top:-2px;height:6%"></div>
      <div class="ln" style="left:22%;right:22%;bottom:-2px;height:16%"></div><div class="ln" style="left:37%;right:37%;bottom:-2px;height:6%"></div>
-     ${F.p.map(([x,y],i)=>{const id=q.s[i],p=S.players[id];
+     ${F.p.map(([x,y],i)=>{const id=q.s[i],p=gp(id);
        return `<div class="slot ${p&&S.sqSel===id?'sel':''}" style="left:${x}%;top:${y}%" data-drop="slot:${i}" ${p?'':`data-a="sqslot" data-v="${i}"`}>
-        ${p?`<div class="c pl tok" data-drag="${id}" data-a="sqslot" data-v="${i}">${h(p.number)}</div><div class="n">${h(p.name)}</div>`:`<div class="c em">${F.l[i]}</div>`}</div>`;}).join('')}
+        ${p?`<div class="c pl tok" data-drag="${id}" data-a="sqslot" data-v="${i}" ${p.guest?'style="background:#0f8a4a"':''}>${h(p.number||'G')}</div><div class="n">${h(p.name)}</div>`:`<div class="c em">${F.l[i]}</div>`}</div>`;}).join('')}
    </div></div>
    <div class="row" style="padding:0 14px 14px;justify-content:center">
      <button class="btn pri" data-a="sqimg" data-v="one">📷 ${S.sqQ+1}쿼터 이미지</button>
@@ -508,7 +510,7 @@ function viewSquad(ro){
    </div></div>`;
   o+=`<div class="sec"><h2>선수 <span style="font-weight:400;font-size:12px;color:var(--mute)">· 숫자는 뛴 쿼터 수 · 흐린 이름은 이번 쿼터에 이미 배치됨</span></h2>
    <div class="chips" style="padding-top:8px"><button class="chip ${S.sqBench==='att'?'on':''}" data-a="sqb" data-v="att">출석자${att.size?' '+att.size+'명':' (출석 체크 전 → 전체 표시)'}</button><button class="chip ${S.sqBench==='all'?'on':''}" data-a="sqb" data-v="all">전체 선수</button></div>
-   <div class="bench" data-drop="bench" data-a="sqtobench">${ps.map(p=>`<div class="tok ${q.s.includes(p.id)?'in':''} ${S.sqSel===p.id?'sel':''}" data-drag="${p.id}" data-a="noop"><i>${h(p.number||'-')}</i>${h(p.name)}<em>${cnt[p.id]?cnt[p.id]+'Q':''}</em></div>`).join('')||'<div class="empty" style="width:100%">선수가 없어요</div>'}</div></div>`;
+   <div class="bench" data-drop="bench" data-a="sqtobench">${ps.map(p=>`<div class="tok ${q.s.includes(p.id)?'in':''} ${S.sqSel===p.id?'sel':''}" data-drag="${p.id}" data-a="noop"><i ${p.guest?'style="background:#0f8a4a"':''}>${h(p.number||(p.guest?'G':'-'))}</i>${h(p.name)}${p.guest?' <em style="color:#0f8a4a">게스트</em>':''}<em>${cnt[p.id]?cnt[p.id]+'Q':''}</em></div>`).join('')||'<div class="empty" style="width:100%">선수가 없어요</div>'}</div></div>`;
   return o;
 }
 function sqPlace(pid,target){
@@ -527,7 +529,7 @@ document.addEventListener('pointerdown',e=>{
 document.addEventListener('pointermove',e=>{
   if(!drag)return;
   if(!drag.moved&&Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>6){
-    drag.moved=true;const g=document.createElement('div');g.className='dragghost';const p=S.players[drag.pid];g.textContent=p?(p.number||p.name.slice(0,1)):'';document.body.appendChild(g);drag.ghost=g;
+    drag.moved=true;const g=document.createElement('div');g.className='dragghost';const p=gp(drag.pid);g.textContent=p?(p.number||p.name.slice(0,1)):'';document.body.appendChild(g);drag.ghost=g;
   }
   if(drag.moved){
     e.preventDefault();if(e.clientY<70)window.scrollBy(0,-14);else if(e.clientY>innerHeight-70)window.scrollBy(0,14);
@@ -586,10 +588,10 @@ function drawPitch(c,x,y,w,hh,q,sc){
   c.restore();
   const F=FORM[q.f],r=34*sc;
   F.p.forEach(([px,py],i)=>{
-    const id=q.s[i],p=S.players[id],cx=x+w*px/100,cy=y+hh*py/100-8*sc;
+    const id=q.s[i],p=gp(id),cx=x+w*px/100,cy=y+hh*py/100-8*sc;
     c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);
-    if(p){c.fillStyle='#071c3f';c.fill();c.lineWidth=4*sc;c.strokeStyle='#fff';c.stroke();
-      c.fillStyle='#fff';c.textAlign='center';c.textBaseline='middle';c.font=`700 ${30*sc}px Oswald, sans-serif`;c.fillText(p.number||'',cx,cy+2*sc);
+    if(p){c.fillStyle=p.guest?'#0f8a4a':'#071c3f';c.fill();c.lineWidth=4*sc;c.strokeStyle='#fff';c.stroke();
+      c.fillStyle='#fff';c.textAlign='center';c.textBaseline='middle';c.font=`700 ${30*sc}px Oswald, sans-serif`;c.fillText(p.number||(p.guest?'G':''),cx,cy+2*sc);
       c.textBaseline='alphabetic';c.font=`700 ${26*sc}px "Noto Sans KR", sans-serif`;c.lineWidth=6*sc;c.strokeStyle='rgba(0,0,0,.55)';c.strokeText(p.name,cx,cy+r+30*sc);c.fillStyle='#fff';c.fillText(p.name,cx,cy+r+30*sc);
     }else{c.setLineDash([8*sc,6*sc]);c.lineWidth=3*sc;c.strokeStyle='rgba(255,255,255,.75)';c.stroke();c.setLineDash([]);
       c.fillStyle='rgba(255,255,255,.85)';c.textAlign='center';c.textBaseline='middle';c.font=`700 ${18*sc}px "Noto Sans KR", sans-serif`;c.fillText(F.l[i],cx,cy);c.textBaseline='alphabetic';}
@@ -635,6 +637,10 @@ function renderModal(){
      ${C.stats.map((x,i)=>`<div class="cfgrow"><input class="sx-name" data-i="${i}" value="${h(x.name)}" placeholder="항목 이름"><button class="x" data-a="sxdel" data-v="${i}">×</button></div>`).join('')}
      <button class="btn" data-a="sxadd">+ 기록 항목 추가</button>
      <div class="mact"><button class="btn ghost" data-a="close">취소</button><button class="btn pri" data-a="awsave">저장</button></div>`;
+  }else if(M.type==='guest'){
+    b=`<h3>게스트·용병 추가</h3><div style="font-size:12px;color:var(--mute);margin-bottom:10px">${fmtD(S.sq.date)} 경기 스쿼드에만 들어가고, 선수 명단·기록·시상에는 포함되지 않아요.</div>
+     <div class="mgrid"><div class="field"><label>이름 *</label><input id="g_name" placeholder="예) 홍길동"></div><div class="field"><label>등번호 (선택)</label><input id="g_num" inputmode="numeric"></div></div>
+     <div class="mact"><button class="btn ghost" data-a="close">취소</button><button class="btn pri" data-a="gsave">추가하고 이 자리에 넣기</button></div>`;
   }else if(M.type==='pick'){
     const q=S.sq.quarters[S.sqQ],F=FORM[q.f],i=M.i;const {ps,att}=benchPlayers();
     const cnt={};S.sq.quarters.forEach(x=>x.s.forEach(id=>{if(id)cnt[id]=(cnt[id]||0)+1;}));
@@ -642,8 +648,8 @@ function renderModal(){
     b=`<h3>${S.sqQ+1}쿼터 · ${F.l[i]} 자리</h3>
      <div class="chips" style="padding:0 0 10px"><button class="chip ${S.sqBench==='att'?'on':''}" data-a="pickb" data-v="att">출석자${att.size?' '+att.size+'명':''}</button><button class="chip ${S.sqBench==='all'?'on':''}" data-a="pickb" data-v="all">전체 선수</button></div>
      <div class="pick">${list.map(p=>{const pos=q.s.indexOf(p.id);const cur=pos===i;
-       return `<button class="pk ${cur?'cur':''} ${pos>=0&&!cur?'used':''}" data-a="pickp" data-v="${p.id}"><span class="no">${h(p.number)}</span><b>${h(p.name)}</b><span class="st">${cur?'현재 이 자리':pos>=0?F.l[pos]+'에 있음 → 자리 바꾸기':''}${cnt[p.id]?`<br>${cnt[p.id]}쿼터 출전`:''}</span></button>`;}).join('')||'<div class="empty">선수가 없어요</div>'}</div>
-     <div class="mact">${q.s[i]?'<button class="btn red" data-a="pickclear">자리 비우기</button>':''}<button class="btn ghost" data-a="close">닫기</button></div>`;
+       return `<button class="pk ${cur?'cur':''} ${pos>=0&&!cur?'used':''}" data-a="pickp" data-v="${p.id}"><span class="no" ${p.guest?'style="color:#0f8a4a"':''}>${h(p.number||(p.guest?'G':''))}</span><b>${h(p.name)}</b>${p.guest?' <span class="tag new">게스트</span> <span class="btn red" style="padding:3px 8px;font-size:11px" data-a="gdel" data-v="'+p.id+'">삭제</span>':''}<span class="st">${cur?'현재 이 자리':pos>=0?F.l[pos]+'에 있음 → 자리 바꾸기':''}${cnt[p.id]?`<br>${cnt[p.id]}쿼터 출전`:''}</span></button>`;}).join('')||'<div class="empty">선수가 없어요</div>'}</div>
+     <div class="mact"><button class="btn" data-a="gadd">+ 게스트·용병</button>${q.s[i]?'<button class="btn red" data-a="pickclear">자리 비우기</button>':''}<button class="btn ghost" data-a="close">닫기</button></div>`;
   }else if(M.type==='img'){
     b=`<h3>스쿼드 이미지</h3><img src="${M.url}" alt="스쿼드"><div style="font-size:12px;color:var(--mute);margin-top:8px">이미지를 길게 눌러 저장해도 돼요.</div>
      <div class="mact"><button class="btn ghost" data-a="close">닫기</button>${dl?'<button class="btn pri" data-a="imgsave">⬇ 이미지 다운로드</button>':''}</div>`;
@@ -803,6 +809,11 @@ document.addEventListener('click',async e=>{
     case 'pickp':{const i=S.modal.i;closeModal();sqPlace(v,'slot:'+i);break;}
     case 'pickclear':{const i=S.modal.i;S.sq.quarters[S.sqQ].s[i]='';closeModal();sqChanged();render();break;}
     case 'pickb':S.sqBench=v;renderModal();break;
+    case 'gadd':openModal({type:'guest',i:S.modal.i});setTimeout(()=>{const x=$('#g_name');if(x)x.focus();},50);break;
+    case 'gsave':{const name=$('#g_name').value.trim();if(!name){toast('이름을 입력해주세요','err');break;}
+      const g={id:'g'+Date.now().toString(36),name,number:$('#g_num').value.trim(),guest:true};
+      S.sq.guests=S.sq.guests||[];S.sq.guests.push(g);const i=S.modal.i;closeModal();sqPlace(g.id,'slot:'+i);toast(name+' 게스트 추가');break;}
+    case 'gdel':{e.stopPropagation();const id=v;S.sq.guests=(S.sq.guests||[]).filter(g=>g.id!==id);S.sq.quarters.forEach(q=>{q.s=q.s.map(x=>x===id?'':x);});sqChanged();renderModal();render();break;}
     case 'sqtobench':if(S.sqSel&&S.sq.quarters[S.sqQ].s.includes(S.sqSel))sqPlace(S.sqSel,'bench');break;
     case 'sqb':S.sqBench=v;render();break;
     case 'sqclear':{const q=S.sq.quarters[S.sqQ];q.s=q.s.map(()=> '');sqChanged();render();break;}
