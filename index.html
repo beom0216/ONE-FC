@@ -175,7 +175,8 @@ nav button.on{color:#fff;border-bottom-color:#4da3ff}
 .aw h4{margin:0 0 6px;font-size:14px;display:flex;justify-content:space-between;align-items:center}
 .aw h4 span{font-size:11px;color:var(--mute);font-weight:500}
 .aw .rk{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:14px;line-height:1.45}
-.aw .rk .md{width:22px;text-align:center}
+.aw .rk .md{width:26px;text-align:center;flex:none}
+.rkn{font-size:11px;font-weight:900;color:var(--mute)}
 .aw .rk .nmz{flex:1;min-width:0;word-break:keep-all;overflow-wrap:anywhere}
 .aw .rk b.v{font-family:Oswald,sans-serif;font-size:16px}
 .cfgrow{display:flex;gap:6px;align-items:center;margin-bottom:8px}
@@ -215,10 +216,11 @@ function mVal(r,m){return m.startsWith('x:')?((r.x||{})[m.slice(2)]||0):(r[m]||0
 function ranking(rows,m){
   const list=rows.map(r=>({p:r.p,v:mVal(r,m)})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v||byNum(a.p,b.p));
   const out=[];let rank=0,prev=null;
-  list.forEach((x,i)=>{if(x.v!==prev){rank=i+1;prev=x.v;}if(rank>3)return;let g=out.find(o=>o.rank===rank);if(!g){g={rank,v:x.v,ps:[]};out.push(g);}g.ps.push(x.p);});
+  list.forEach((x,i)=>{if(x.v!==prev){rank=i+1;prev=x.v;}if(rank>((S.cfg&&S.cfg.topN)||3))return;let g=out.find(o=>o.rank===rank);if(!g){g={rank,v:x.v,ps:[]};out.push(g);}g.ps.push(x.p);});
   return out;
 }
 const fmtV=(m,v)=>m==='rate'?v+'%':v;
+const medal=r=>r<=3?['🥇','🥈','🥉'][r-1]:`<span class="rkn">${r}위</span>`;
 
 /* ---------- storage ---------- */
 function loadLocal(){try{const o=JSON.parse(localStorage.getItem(LS)||'{}');S.players=o.players||{};S.matches=o.matches||{};S.squads=o.squads||{};S.cfg=o.cfg||DEFCFG();for(const c of ['players','matches','squads'])for(const k in S[c])S[c][k].id=k;}catch(e){}}
@@ -389,8 +391,9 @@ function viewStats(){
   const top=(f)=>{const m=Math.max(0,...rows.map(f));if(!m)return null;const w=rows.filter(r=>f(r)===m);return {v:m,n:w.map(r=>r.p.name).join(', ')};};
   
   let o=`<div class="sec"><div class="chips" style="padding-top:12px"><button class="chip ${S.season==='all'?'on':''}" data-a="season" data-v="all">전체</button>${ss.map(y=>`<button class="chip ${S.season===y?'on':''}" data-a="season" data-v="${y}">${y}시즌</button>`).join('')}</div>
-   <div style="display:flex;align-items:center;padding:0 14px 10px"><h2 style="padding:0;flex:1">🏆 시상 현황 <span style="font-weight:400;font-size:12px;color:var(--mute)">${S.season==='all'?'전체':S.season+'시즌'} · 현재까지</span></h2>${S.canWrite?'<button class="btn" data-a="awcfg">시상 항목 편집</button>':''}</div>
-   <div class="awg">${S.cfg.awards.map(aw=>{const rk=ranking(rows,aw.metric);return `<div class="aw"><h4>${h(aw.name)}<span>${h(mName(aw.metric))}</span></h4>${rk.length?rk.map(g=>`<div class="rk"><span class="md">${['🥇','🥈','🥉'][g.rank-1]}</span><span class="nmz">${g.ps.slice(0,8).map(p=>h(pname(p))).join(', ')}${g.ps.length>8?` 외 ${g.ps.length-8}명`:''}${g.ps.length>1?` <span style="font-size:11px;color:var(--mute)">(공동 ${g.ps.length}명)</span>`:''}</span><b class="v">${fmtV(aw.metric,g.v)}</b></div>`).join(''):'<div style="font-size:13px;color:var(--mute);padding:4px 0">아직 기록 없음</div>'}</div>`;}).join('')}</div></div>`;
+   <div style="display:flex;align-items:center;padding:0 14px 10px"><h2 style="padding:0;flex:1">🏆 시상 현황 <span style="font-weight:400;font-size:12px;color:var(--mute)">${S.season==='all'?'전체':S.season+'시즌'} · 현재까지</span></h2></div>
+   <div class="row" style="padding:0 14px 12px"><button class="btn pri" data-a="rkimg">📷 순위 이미지 공유</button>${S.canWrite?'<button class="btn" data-a="awcfg">시상 항목 편집</button>':''}</div>
+   <div class="awg">${S.cfg.awards.map(aw=>{const rk=ranking(rows,aw.metric);return `<div class="aw"><h4>${h(aw.name)}<span>${h(mName(aw.metric))}</span></h4>${rk.length?rk.map(g=>`<div class="rk"><span class="md">${medal(g.rank)}</span><span class="nmz">${g.ps.slice(0,8).map(p=>h(pname(p))).join(', ')}${g.ps.length>8?` 외 ${g.ps.length-8}명`:''}${g.ps.length>1?` <span style="font-size:11px;color:var(--mute)">(공동 ${g.ps.length}명)</span>`:''}</span><b class="v">${fmtV(aw.metric,g.v)}</b></div>`).join(''):'<div style="font-size:13px;color:var(--mute);padding:4px 0">아직 기록 없음</div>'}</div>`;}).join('')}</div></div>`;
   const H=[['name','선수'],['att','출석'],['rate','출석률'],['g','골'],['a','어시'],['pts','공격P'],['mvp','MVP']].concat((S.cfg.stats||[]).map(x=>['x:'+x.id,x.name]));
   o+=`<div class="sec"><h2>개인 누적 기록 <span style="font-weight:400;font-size:12px;color:var(--mute)">· ${ms.length}경기 · 제목 눌러 정렬</span></h2><div class="tblw"><table class="tbl"><thead><tr>${H.map(([key,t])=>`<th data-a="sort" data-v="${key}" class="${k===key?'s':''}">${t}${k===key?(dir<0?' ▼':' ▲'):''}</th>`).join('')}</tr></thead><tbody>`;
   rows.forEach(r=>{
@@ -608,6 +611,50 @@ async function showSquadImage(all){
   cv.toBlob(b=>{openModal({type:'img',url,name,blob:b});},'image/png');
 }
 
+/* ---------- rank image ---------- */
+async function showRankImage(){
+  try{await document.fonts.ready;}catch(e){}
+  const season=S.season,rows=calc(season).filter(r=>r.el>0||r.att>0||r.p.status!=='left');
+  const ms=matchesIn(season);
+  const W=1080,pad=50,gap=28,colW=(W-pad*2-gap)/2,FONT='"Noto Sans KR","Noto Sans CJK KR",sans-serif';
+  const cv0=document.createElement('canvas').getContext('2d');
+  const cards=S.cfg.awards.map(aw=>{const rk=ranking(rows,aw.metric);return {aw,rk,h:96+Math.max(1,rk.length)*58+18};});
+  const cnt={};Object.values(S.players).forEach(p=>cnt[p.name]=(cnt[p.name]||0)+1);const nm=p=>cnt[p.name]>1?p.name+'#'+p.number:p.name;
+  const cols=[0,0],place=[];
+  cards.forEach(c=>{const ci=cols[0]<=cols[1]?0:1;place.push({c,x:pad+ci*(colW+gap),y:cols[ci]});cols[ci]+=c.h+gap;});
+  const head=250,H=head+Math.max(...cols,0)+70;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;const c=cv.getContext('2d');
+  const g=c.createLinearGradient(0,0,W,H);g.addColorStop(0,'#061633');g.addColorStop(.55,'#0b3a87');g.addColorStop(1,'#1f6fe0');c.fillStyle=g;c.fillRect(0,0,W,H);
+  c.fillStyle='#fff';c.textAlign='center';c.font='700 76px Oswald, '+FONT;c.fillText('ONE FC',W/2,105);
+  c.font='900 40px '+FONT;c.fillText('🏆 실시간 시상 순위',W/2,165);
+  c.font='500 26px '+FONT;c.fillStyle='rgba(255,255,255,.8)';
+  c.fillText(`${season==='all'?'전체 기록':season+' 시즌'} · ${ms.length}경기 · ${fmtD(today())} 기준`,W/2,210);
+  const rr=(x,y,w,h,r)=>{c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();};
+  const fit=(t,mw)=>{if(c.measureText(t).width<=mw)return t;while(t.length>1&&c.measureText(t+'…').width>mw)t=t.slice(0,-1);return t+'…';};
+  place.forEach(({c:cd,x,y})=>{
+    y+=head;rr(x,y,colW,cd.h,24);c.fillStyle='#fff';c.fill();
+    c.textAlign='left';c.fillStyle='#0d1b2e';c.font='900 32px '+FONT;c.fillText(fit(cd.aw.name,colW-200),x+28,y+56);
+    c.textAlign='right';c.fillStyle='#66758a';c.font='500 21px '+FONT;c.fillText(mName(cd.aw.metric),x+colW-26,y+54);
+    c.fillStyle='#e3e8ef';c.fillRect(x+24,y+78,colW-48,2);
+    if(!cd.rk.length){c.textAlign='left';c.fillStyle='#8a97a8';c.font='500 24px '+FONT;c.fillText('아직 기록 없음',x+28,y+124);return;}
+    cd.rk.forEach((gr,i)=>{
+      const yy=y+124+i*58;
+      if(gr.rank<=3){const col=['#e0a100','#9aa6b6','#c27a3e'][gr.rank-1];c.beginPath();c.arc(x+48,yy-9,20,0,Math.PI*2);c.fillStyle=col;c.fill();c.fillStyle='#fff';c.textAlign='center';c.font='900 22px '+FONT;c.fillText(gr.rank,x+48,yy-1);}
+      else{c.fillStyle='#8a97a8';c.textAlign='center';c.font='900 22px '+FONT;c.fillText(gr.rank+'위',x+48,yy-1);}
+      c.textAlign='right';c.fillStyle='#0b4fb3';c.font='700 30px Oswald, '+FONT;const vt=String(fmtV(cd.aw.metric,gr.v));c.fillText(vt,x+colW-28,yy);
+      const vw=c.measureText(vt).width;
+      c.textAlign='left';c.fillStyle='#0d1b2e';c.font='700 26px '+FONT;
+      let names=gr.ps.map(nm).join(', ');const mw=colW-110-vw-20;
+      if(c.measureText(names).width>mw){let k=gr.ps.length;while(k>1&&c.measureText(gr.ps.slice(0,k).map(nm).join(', ')+` 외 ${gr.ps.length-k}명`).width>mw)k--;names=gr.ps.slice(0,k).map(nm).join(', ')+(k<gr.ps.length?` 외 ${gr.ps.length-k}명`:'');names=fit(names,mw);}
+      c.fillText(names,x+80,yy);
+    });
+  });
+  c.textAlign='center';c.fillStyle='rgba(255,255,255,.55)';c.font='500 22px '+FONT;c.fillText('ONE FC 경기 기록부',W/2,H-28);
+  const url=cv.toDataURL('image/png');
+  const name=`ONE_FC_순위_${today().replace(/-/g,'')}.png`;
+  cv.toBlob(b=>openModal({type:'img',url,name,blob:b,title:'순위 이미지'}),'image/png');
+}
+
 /* ---------- modal ---------- */
 function renderModal(){
   const M=S.modal,el=$('#modal');
@@ -634,6 +681,7 @@ function renderModal(){
     const C=M.cfg;const ms=BASEM.concat(C.stats.map(x=>['x:'+x.id,x.name||'(이름 없음)']));
     b=`<h3>시상 항목 편집</h3>
      <div style="font-size:12px;color:var(--mute);margin-bottom:10px">상 이름과 무엇으로 순위를 매길지 고르세요. 기록 탭과 엑셀에 1·2·3위가 자동으로 나와요.</div>
+     <div class="cfgrow"><span style="font-size:14px;font-weight:700;flex:1">순위 몇 등까지 보여줄까요?</span><select id="aw-topn" style="flex:none;width:110px">${[3,5,10].map(n=>`<option value="${n}" ${(C.topN||3)===n?'selected':''}>${n}등까지</option>`).join('')}</select></div>
      ${C.awards.map((aw,i)=>`<div class="cfgrow"><input class="aw-name" data-i="${i}" value="${h(aw.name)}" placeholder="상 이름"><select class="aw-metric" data-i="${i}">${ms.map(([k,t])=>`<option value="${k}" ${aw.metric===k?'selected':''}>${h(t)}</option>`).join('')}</select><button class="x" data-a="awdel" data-v="${i}">×</button></div>`).join('')}
      <button class="btn" data-a="awadd">+ 시상 항목 추가</button>
      <h3 style="margin-top:22px">추가 기록 항목</h3>
@@ -655,7 +703,7 @@ function renderModal(){
        return `<button class="pk ${cur?'cur':''} ${pos>=0&&!cur?'used':''}" data-a="pickp" data-v="${p.id}"><span class="no" ${p.guest?'style="color:#ff7a00"':''}>${h(p.number||(p.guest?'G':''))}</span><b>${h(p.name)}</b>${p.guest?' <span class="tag" style="background:#ff7a00">게스트</span> <span class="btn red" style="padding:3px 8px;font-size:11px" data-a="gdel" data-v="'+p.id+'">삭제</span>':''}<span class="st">${cur?'현재 이 자리':pos>=0?F.l[pos]+'에 있음 → 자리 바꾸기':''}${cnt[p.id]?`<br>${cnt[p.id]}쿼터 출전`:''}</span></button>`;}).join('')||'<div class="empty">선수가 없어요</div>'}</div>
      <div class="mact"><button class="btn" data-a="gadd">+ 게스트·용병</button>${q.s[i]?'<button class="btn red" data-a="pickclear">자리 비우기</button>':''}<button class="btn ghost" data-a="close">닫기</button></div>`;
   }else if(M.type==='img'){
-    b=`<h3>스쿼드 이미지</h3><img src="${M.url}" alt="스쿼드"><div style="font-size:12px;color:var(--mute);margin-top:8px">이미지를 길게 눌러 저장해도 돼요.</div>
+    b=`<h3>${M.title||'스쿼드 이미지'}</h3><img src="${M.url}" alt="스쿼드"><div style="font-size:12px;color:var(--mute);margin-top:8px">이미지를 길게 눌러 저장해도 돼요.</div>
      <div class="mact"><button class="btn ghost" data-a="close">닫기</button>${dl?'<button class="btn pri" data-a="imgsave">⬇ 이미지 다운로드</button>':''}</div>`;
   }else if(M.type==='confirm'){
     b=`<h3>${h(M.title)}</h3><div style="font-size:14px;color:var(--mute);line-height:1.6">${h(M.msg)}</div>
@@ -796,6 +844,7 @@ document.addEventListener('click',async e=>{
       try{await saveFile(`ONE_FC_백업_${today().replace(/-/g,'')}.json`,new Blob([data],{type:'application/json'}));try{localStorage.setItem('onefc_lastbackup',today());}catch(e){}toast('백업 파일 저장 완료');render();}catch(e){if(!(e&&e.code==='declined'))toast('백업 저장 실패','err');}break;}
     case 'noop':break;
     case 'mx':S.mx=v;render();break;
+    case 'rkimg':{t.disabled=true;await showRankImage();t.disabled=false;break;}
     case 'x+':case 'x-':{const r=rec(v);r.x=r.x||{};const c=(r.x[S.mx]||0)+(a==='x+'?1:-1);r.x[S.mx]=Math.max(0,c);if(a==='x+')r.a=true;setDirty();render();break;}
     case 'awcfg':openModal({type:'awcfg',cfg:JSON.parse(JSON.stringify(S.cfg))});break;
     case 'awadd':S.modal.cfg.awards.push({id:'a'+Date.now().toString(36),name:'',metric:'g'});renderModal();break;
@@ -884,6 +933,7 @@ document.addEventListener('change',async e=>{
   }else if(id==='sqf'){
     const q=S.sq.quarters[S.sqQ];const ids=q.s;q.f=e.target.value;const n=FORM[q.f].p.length;q.s=ids.slice(0,n);while(q.s.length<n)q.s.push('');
     sqChanged();pending=false;render();
+  }else if(id==='aw-topn'){S.modal.cfg.topN=+e.target.value;
   }else if(e.target.classList.contains('aw-metric')){S.modal.cfg.awards[+e.target.dataset.i].metric=e.target.value;
   }else if(id==='fp_st'){$('#fp_leftw').style.display=e.target.value==='left'?'':'none';}
   else if(e.target.classList.contains('fi_chk')){S.modal.rows[+e.target.dataset.i].on=e.target.checked;const n=S.modal.rows.filter(r=>r.on).length;const b=document.querySelector('[data-a="doimport"]');if(b)b.textContent=n+'명 추가';}
