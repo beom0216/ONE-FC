@@ -726,7 +726,8 @@ async function doExport(){
   {const ws=XLSX.utils.aoa_to_sheet(main);const c0=main[0].length+1;XLSX.utils.sheet_add_aoa(ws,blk,{origin:{r:0,c:c0}});
    const w=[6,7,10,6,12,6,12,6,10,6,9,11,6,...XS.map(()=>10)];ws['!cols']=[...w.map(x=>({wch:x})),{wch:3},{wch:16},{wch:14},{wch:7},{wch:8}];
    XLSX.utils.book_append_sheet(wb,ws,'누적기록');}
-  {const ws=XLSX.utils.aoa_to_sheet(blk);ws['!cols']=[{wch:16},{wch:14},{wch:7},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'시상');}
+  {const ws=XLSX.utils.aoa_to_sheet(blk);ws['!cols']=[{wch:16},{wch:14},{wch:7},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'시상');
+   wb.SheetNames=['시상',...wb.SheetNames.filter(n=>n!=='시상')];}
   const dh=ms.map(m=>m.date.slice(2).replace(/-/g,'.'));
   const grid=(f,sum)=>[['등번호','이름','가입일',...dh,'합계'],...players.map(p=>{let t=0;const cells=ms.map(m=>{const r=(m.rec||{})[p.id];const v=f(r,m,p);if(typeof v==='number')t+=v;else if(v==='O')t++;return v;});return [p.number,p.name,p.joinDate||'기존',...cells,t];})];
   add('출석부',grid((r,m,p)=>r&&r.a?'O':(eligible(p,m.date)||r?'':'-')),[7,10,12,9]);
