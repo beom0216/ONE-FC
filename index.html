@@ -170,9 +170,9 @@ nav button.on{color:#fff;border-bottom-color:#4da3ff}
 .aw{min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fbfcfe}
 .aw h4{margin:0 0 6px;font-size:14px;display:flex;justify-content:space-between;align-items:center}
 .aw h4 span{font-size:11px;color:var(--mute);font-weight:500}
-.aw .rk{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:14px}
+.aw .rk{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:14px;line-height:1.45}
 .aw .rk .md{width:22px;text-align:center}
-.aw .rk .nmz{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aw .rk .nmz{flex:1;min-width:0;word-break:keep-all;overflow-wrap:anywhere}
 .aw .rk b.v{font-family:Oswald,sans-serif;font-size:16px}
 .cfgrow{display:flex;gap:6px;align-items:center;margin-bottom:8px}
 .cfgrow input,.cfgrow select{border:1px solid var(--line);border-radius:9px;padding:9px 10px;background:#fff;min-width:0}
@@ -386,7 +386,7 @@ function viewStats(){
   
   let o=`<div class="sec"><div class="chips" style="padding-top:12px"><button class="chip ${S.season==='all'?'on':''}" data-a="season" data-v="all">전체</button>${ss.map(y=>`<button class="chip ${S.season===y?'on':''}" data-a="season" data-v="${y}">${y}시즌</button>`).join('')}</div>
    <div style="display:flex;align-items:center;padding:0 14px 10px"><h2 style="padding:0;flex:1">🏆 시상 현황 <span style="font-weight:400;font-size:12px;color:var(--mute)">${S.season==='all'?'전체':S.season+'시즌'} · 현재까지</span></h2>${S.canWrite?'<button class="btn" data-a="awcfg">시상 항목 편집</button>':''}</div>
-   <div class="awg">${S.cfg.awards.map(aw=>{const rk=ranking(rows,aw.metric);return `<div class="aw"><h4>${h(aw.name)}<span>${h(mName(aw.metric))}</span></h4>${rk.length?rk.map(g=>`<div class="rk"><span class="md">${['🥇','🥈','🥉'][g.rank-1]}</span><span class="nmz">${g.ps.map(p=>h(pname(p))).join(', ')}${g.ps.length>1?' <span style="font-size:11px;color:var(--mute)">(공동)</span>':''}</span><b class="v">${fmtV(aw.metric,g.v)}</b></div>`).join(''):'<div style="font-size:13px;color:var(--mute);padding:4px 0">아직 기록 없음</div>'}</div>`;}).join('')}</div></div>`;
+   <div class="awg">${S.cfg.awards.map(aw=>{const rk=ranking(rows,aw.metric);return `<div class="aw"><h4>${h(aw.name)}<span>${h(mName(aw.metric))}</span></h4>${rk.length?rk.map(g=>`<div class="rk"><span class="md">${['🥇','🥈','🥉'][g.rank-1]}</span><span class="nmz">${g.ps.slice(0,8).map(p=>h(pname(p))).join(', ')}${g.ps.length>8?` 외 ${g.ps.length-8}명`:''}${g.ps.length>1?` <span style="font-size:11px;color:var(--mute)">(공동 ${g.ps.length}명)</span>`:''}</span><b class="v">${fmtV(aw.metric,g.v)}</b></div>`).join(''):'<div style="font-size:13px;color:var(--mute);padding:4px 0">아직 기록 없음</div>'}</div>`;}).join('')}</div></div>`;
   const H=[['name','선수'],['att','출석'],['rate','출석률'],['g','골'],['a','어시'],['pts','공격P'],['mvp','MVP']].concat((S.cfg.stats||[]).map(x=>['x:'+x.id,x.name]));
   o+=`<div class="sec"><h2>개인 누적 기록 <span style="font-weight:400;font-size:12px;color:var(--mute)">· ${ms.length}경기 · 제목 눌러 정렬</span></h2><div class="tblw"><table class="tbl"><thead><tr>${H.map(([key,t])=>`<th data-a="sort" data-v="${key}" class="${k===key?'s':''}">${t}${k===key?(dir<0?' ▼':' ▲'):''}</th>`).join('')}</tr></thead><tbody>`;
   rows.forEach(r=>{
@@ -726,7 +726,7 @@ async function doExport(){
   {const ws=XLSX.utils.aoa_to_sheet(main);const c0=main[0].length+1;XLSX.utils.sheet_add_aoa(ws,blk,{origin:{r:0,c:c0}});
    const w=[6,7,10,6,12,6,12,6,10,6,9,11,6,...XS.map(()=>10)];ws['!cols']=[...w.map(x=>({wch:x})),{wch:3},{wch:16},{wch:14},{wch:7},{wch:8}];
    XLSX.utils.book_append_sheet(wb,ws,'누적기록');}
-  {const ws=XLSX.utils.aoa_to_sheet(blk);ws['!cols']=[{wch:16},{wch:14},{wch:7},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'시상');
+  {const ws=XLSX.utils.aoa_to_sheet(blk);ws['!cols']=[{wch:14},{wch:20},{wch:8},{wch:10}];XLSX.utils.book_append_sheet(wb,ws,'시상');
    wb.SheetNames=['시상',...wb.SheetNames.filter(n=>n!=='시상')];}
   const dh=ms.map(m=>m.date.slice(2).replace(/-/g,'.'));
   const grid=(f,sum)=>[['등번호','이름','가입일',...dh,'합계'],...players.map(p=>{let t=0;const cells=ms.map(m=>{const r=(m.rec||{})[p.id];const v=f(r,m,p);if(typeof v==='number')t+=v;else if(v==='O')t++;return v;});return [p.number,p.name,p.joinDate||'기존',...cells,t];})];
