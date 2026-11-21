@@ -169,6 +169,8 @@ nav button.on{color:#fff;border-bottom-color:#4da3ff}
 .pk.used b{color:var(--mute)}
 .slot{cursor:pointer}
 .stp.wide{grid-column:span 2}
+.stp.sum{background:#f6f8fb;justify-content:center}
+.stp.sum b{line-height:34px}
 .awg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 14px 14px}
 @media(max-width:520px){.awg{grid-template-columns:minmax(0,1fr)}}
 .aw{min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fbfcfe}
@@ -205,7 +207,7 @@ const byNum=(a,b)=>numKey(a)-numKey(b)||String(a.name).localeCompare(String(b.na
 const pname=p=>p?(p.name+(p.number!==''&&p.number!=null?' #'+p.number:'')):'(삭제된 선수)';
 
 const S={players:{},matches:{},loaded:false,stale:false,mode:'db',tab:'match',draft:null,dirty:false,
-  sort:{k:'pts',d:-1},season:'all',pfilter:'active',psort:'num',canWrite:true,modal:null,squads:{},sq:null,sqQ:0,sqSel:null,sqBench:'att',sqDirty:0,mx:'',cfg:null};
+  sort:{k:'pts',d:-1},season:'all',pfilter:'active',psort:'num',canWrite:true,modal:null,squads:{},sq:null,sqQ:0,sqSel:null,sqBench:'att',sqDirty:0,mx:'',cfg:null,qm:'1'};
 let db=null,dl=null,pending=false;
 const LS='onefc_v1';
 const DEFCFG=()=>({awards:[{id:'a1',name:'득점왕',metric:'g'},{id:'a2',name:'도움왕',metric:'a'},{id:'a3',name:'공격포인트왕',metric:'pts'},{id:'a4',name:'출석왕',metric:'att'},{id:'a5',name:'MVP왕',metric:'mvp'}],stats:[]});
@@ -286,10 +288,17 @@ function eligible(p,date){
 }
 function openDate(date){
   const m=S.matches[date];
-  S.draft=m?JSON.parse(JSON.stringify({date,opponent:m.opponent||'',ours:m.ours==null?'':m.ours,theirs:m.theirs==null?'':m.theirs,memo:m.memo||'',rec:m.rec||{},mvp:m.mvp||''}))
-          :{date,opponent:'',ours:'',theirs:'',memo:'',rec:{},mvp:''};
+  S.draft=m?JSON.parse(JSON.stringify({date,opponent:m.opponent||'',ours:m.ours==null?'':m.ours,theirs:m.theirs==null?'':m.theirs,memo:m.memo||'',rec:m.rec||{},mvp:m.mvp||'',nq:m.nq||4}))
+          :{date,opponent:'',ours:'',theirs:'',memo:'',rec:{},mvp:'',nq:4};
+  for(const id in S.draft.rec){const r=S.draft.rec[id];if(!r.b)r.b={g:r.q?0:(r.g||0),s:r.q?0:(r.s||0),x:r.q?{}:Object.assign({},r.x||{})};r.b.x=r.b.x||{};r.q=r.q||{};}
+  const hasB=Object.values(S.draft.rec).some(r=>r.b.g||r.b.s||Object.values(r.b.x).some(v=>v));
+  const hasQ=Object.values(S.draft.rec).some(r=>Object.keys(r.q).length);
+  S.qm=(hasB&&!hasQ)?'b':'1';
   S.dirty=false;
 }
+function qcell(r,k){if(k==='b')return r.b;r.q[k]=r.q[k]||{g:0,s:0,x:{}};r.q[k].x=r.q[k].x||{};return r.q[k];}
+function tot(r,key){if(!r)return 0;const b=r.b||{g:r.g||0,s:r.s||0,x:r.x||{}};let t=key.startsWith('x:')?((b.x||{})[key.slice(2)]||0):(b[key]||0);for(const k in (r.q||{})){const c=r.q[k];t+=key.startsWith('x:')?((c.x||{})[key.slice(2)]||0):(c[key]||0);}return t;}
+function qval(r,k,key){if(!r)return 0;const c=k==='b'?r.b:(r.q||{})[k];if(!c)return 0;return key.startsWith('x:')?((c.x||{})[key.slice(2)]||0):(c[key]||0);}
 function rosterFor(d){
   return Object.values(S.players).filter(p=>eligible(p,d.date)||d.rec[p.id]).sort(byNum);
 }
@@ -336,8 +345,8 @@ function viewMatch(ro){
   const recent=Object.keys(S.matches).sort().reverse().slice(0,8);
   const exists=!!S.matches[d.date];
   const attN=roster.filter(p=>d.rec[p.id]&&d.rec[p.id].a).length;
-  const gN=roster.reduce((s,p)=>s+((d.rec[p.id]||{}).g||0),0);
-  const sN=roster.reduce((s,p)=>s+((d.rec[p.id]||{}).s||0),0);
+  const gN=roster.reduce((s,p)=>s+tot(d.rec[p.id],'g'),0);
+  const sN=roster.reduce((s,p)=>s+tot(d.rec[p.id],'s'),0);
   let o=`<div class="sec"><h2>${exists?'경기 기록 수정':'새 경기 기록'}</h2>
    <div class="pad"><div class="row">
     <div class="field" style="flex:1.2"><label>경기 날짜</label><input type="date" id="mdate" value="${h(d.date)}"></div>
@@ -350,7 +359,7 @@ function viewMatch(ro){
    </div></div>`;
   if(recent.length)o+=`<div class="chips">${recent.map(k=>`<button class="chip ${k===d.date?'on':''}" data-a="jump" data-v="${k}">${fmtD(k).slice(2)} (${dow(k)})</button>`).join('')}</div>`;
   o+=`<div class="sum"><div><b>${attN}</b><span>출석 / ${roster.length}명</span></div><div><b>${gN}</b><span>득점</span></div><div><b>${sN}</b><span>어시스트</span></div><div><b style="font-size:15px;font-family:'Noto Sans KR';line-height:1.9">${d.mvp?h(pname(S.players[d.mvp])):'-'}</b><span>MVP</span></div></div>`;
-  if(!ro)o+=`<div class="row" style="padding:0 14px 12px"><button class="btn" data-a="allatt">전원 출석</button><button class="btn ghost" data-a="clear">초기화</button><button class="btn" data-a="mimg">📷 경기 결과</button>${exists?'<span style="flex:1"></span><button class="btn red" data-a="delmatch">경기 삭제</button>':''}</div>`;
+  if(!ro)o+=`<div class="row" style="padding:0 14px 12px"><button class="btn" data-a="allatt">전원 출석</button><button class="btn ghost" data-a="clear">초기화</button><button class="btn" data-a="mimg">📷 경기 결과</button></div><div class="row" style="padding:0 14px 12px"><button class="btn" data-a="qtext">💬 쿼터별 기록 톡 공유</button><button class="btn" data-a="qimg">📷 쿼터별 기록표</button>${exists?'<span style="flex:1"></span><button class="btn red" data-a="delmatch">경기 삭제</button>':''}</div>`;
   o+=`</div>`;
   if(!Object.keys(S.players).length){
     o+=`<div class="sec"><div class="empty">아직 선수가 없어요.<br>받은 <b>ONE_FC_명단.json</b> 파일을 선수 명단 탭 맨 아래 <b>백업 불러오기</b>로 넣어주세요.<br><br><button class="btn pri" data-a="tab" data-v="players">선수 명단 등록하러 가기</button></div></div>`;
@@ -359,14 +368,19 @@ function viewMatch(ro){
   const XS=S.cfg.stats||[];if(S.mx&&!XS.find(x=>x.id===S.mx))S.mx='';
   const mx=S.mx?XS.find(x=>x.id===S.mx):null;
   o+=`<div class="sec">${XS.length?`<div class="chips" style="padding-top:12px"><span style="font-size:12px;color:var(--mute);align-self:center;flex:none">입력 항목</span><button class="chip ${!mx?'on':''}" data-a="mx" data-v="">골·어시</button>${XS.map(x=>`<button class="chip ${mx&&mx.id===x.id?'on':''}" data-a="mx" data-v="${x.id}">${h(x.name)}</button>`).join('')}</div>`:''}
+   ${(()=>{const hasB=Object.values(d.rec).some(r=>r.b&&(r.b.g||r.b.s||Object.values(r.b.x||{}).some(v=>v)));const ks=[...Array(d.nq).keys()].map(i=>String(i+1));
+     const cnt=k=>{let g=0,a=0;Object.values(d.rec).forEach(r=>{g+=qval(r,k,'g');a+=qval(r,k,'s');});return g||a?` <span style="opacity:.75;font-weight:400">⚽${g}${a?' 🅰'+a:''}</span>`:'';};
+     return `<div class="chips" style="padding-top:12px"><button class="chip ${S.qm==='sum'?'on':''}" data-a="qm" data-v="sum" style="font-weight:700">합계</button>${ks.map(k=>`<button class="chip ${S.qm===k?'on':''}" data-a="qm" data-v="${k}">${k}Q${cnt(k)}</button>`).join('')}${hasB?`<button class="chip ${S.qm==='b'?'on':''}" data-a="qm" data-v="b">구분없음${cnt('b')}</button>`:''}${ro?'':'<button class="chip" data-a="qadd">+ 쿼터</button>'}</div>`;})()}
+   <div class="hint" style="padding-top:2px">${S.qm==='sum'?'쿼터별로 넣은 기록이 자동으로 합쳐진 결과예요. 고치려면 해당 쿼터를 누르세요.':S.qm==='b'?'쿼터 구분 없이 넣었던 기록이에요.':`<b>${S.qm}쿼터</b> 골·어시를 넣으면 합계에 자동으로 더해져요.`}</div>
    <div class="phead"><div>선수</div><div>출석</div>${mx?`<div style="grid-column:span 2">${h(mx.name)}</div>`:'<div>골</div><div>어시</div>'}<div>MVP</div></div>`;
   roster.forEach(p=>{
     const r=d.rec[p.id]||{};const on=!!r.a;
     const isNew=p.joinDate&&daysSince(p.joinDate)<=30&&daysSince(p.joinDate)>=0;
     o+=`<div class="prow ${on?'':'off'}"><div class="nm ${ro?'':'ed'}" ${ro?'':`data-a="editp" data-v="${p.id}"`}><span class="no">${h(p.number)}</span><span class="t">${h(p.name)}</span>${isNew?'<span class="tag new">신규</span>':''}</div>
      <button class="att ${on?'on':''}" data-a="att" data-v="${p.id}">${on?'O':'–'}</button>
-     ${mx?(()=>{const xv=(r.x||{})[mx.id]||0;return `<div class="stp wide"><button data-a="x-" data-v="${p.id}">−</button><b class="${xv?'':'z'}">${xv}</b><button data-a="x+" data-v="${p.id}">+</button></div>`;})():`<div class="stp"><button data-a="g-" data-v="${p.id}">−</button><b class="${r.g?'':'z'}">${r.g||0}</b><button data-a="g+" data-v="${p.id}">+</button></div>
-     <div class="stp"><button data-a="s-" data-v="${p.id}">−</button><b class="${r.s?'':'z'}">${r.s||0}</b><button data-a="s+" data-v="${p.id}">+</button></div>`}
+     ${(()=>{const sum=S.qm==='sum';const V=key=>sum?tot(d.rec[p.id],key):qval(d.rec[p.id],S.qm,key);
+       const st=(key,act,wide)=>{const v=V(key);return sum?`<div class="stp ${wide?'wide':''} sum"><b class="${v?'':'z'}" style="margin:0 auto">${v}</b></div>`:`<div class="stp ${wide?'wide':''}"><button data-a="${act}-" data-v="${p.id}">−</button><b class="${v?'':'z'}">${v}</b><button data-a="${act}+" data-v="${p.id}">+</button></div>`;};
+       return mx?st('x:'+mx.id,'x',true):st('g','g')+st('s','s');})()}
      <button class="star ${d.mvp===p.id?'on':''}" data-a="mvp" data-v="${p.id}">★</button></div>`;
   });
   if(!ro)o+=`<div class="addrow"><button class="btn" data-a="addp">+ 선수 추가</button><span style="width:8px"></span><span style="font-size:12px;color:var(--mute);align-self:center">이름 누르면 등번호·정보 수정</span></div>`;
@@ -666,7 +680,7 @@ async function finishImg(cv,name,title){const url=cv.toDataURL('image/png');cv.t
 function nmOf(p){if(!p)return '?';const dup=Object.values(S.players).filter(x=>x.name===p.name).length>1;return dup?p.name+'#'+p.number:p.name;}
 async function matchImage(){
   try{await document.fonts.ready;}catch(e){}
-  const d=S.draft;const rec=d.rec||{};const W=1080,H=1350;const [cv,c]=cvs(W,H);bgPitch(c,W,H);
+  const d=S.draft;const rec={};for(const id in (d.rec||{})){const r=d.rec[id];rec[id]={a:r.a,g:tot(r,'g'),s:tot(r,'s')};}const W=1080,H=1350;const [cv,c]=cvs(W,H);bgPitch(c,W,H);
   c.textAlign='center';c.fillStyle='rgba(255,255,255,.7)';c.font='700 30px Oswald, '+FNT;c.fillText('ONE FC · MATCH REPORT',W/2,90);
   c.fillStyle='#fff';c.font='500 34px '+FNT;c.fillText(`${fmtD(d.date)} (${dow(d.date)})${d.opponent?'  ·  '+d.opponent:''}`,W/2,145);
   const hasScore=d.ours!==''&&d.ours!=null;
@@ -727,6 +741,58 @@ async function playerCard(pid){
   finishImg(cv,`ONE_FC_선수카드_${p.name}.png`,'선수 카드');
 }
 
+/* ---------- quarter summary ---------- */
+function qLines(){
+  const d=S.draft;const XS=S.cfg.stats||[];const ks=[...Array(d.nq||4).keys()].map(i=>String(i+1));
+  const hasB=Object.values(d.rec).some(r=>r.b&&(r.b.g||r.b.s||Object.values(r.b.x||{}).some(v=>v)));
+  if(hasB)ks.push('b');
+  const items=[['g','⚽','골'],['s','🅰','어시'],...XS.map(x=>['x:'+x.id,'🔸'+x.name,x.name])];
+  const list=(k,key)=>Object.entries(d.rec).map(([id,r])=>[id,k==='sum'?tot(r,key):qval(r,k,key)]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([id,v])=>nmOf(S.players[id])+(v>1?' '+v:''));
+  const qs=ks.map(k=>({k,label:k==='b'?'구분없음':k+'Q',parts:items.map(([key,ic,lb])=>[ic,list(k,key),lb]).filter(([,l])=>l.length)}));
+  const sum=items.map(([key,ic,lb])=>[ic,list('sum',key),lb]).filter(([,l])=>l.length);
+  return {d,qs,sum};
+}
+function qText(){
+  const {d,qs,sum}=qLines();const att=Object.values(d.rec).filter(r=>r.a).length;
+  let t=`[ONE FC] ${fmtD(d.date).slice(2)}(${dow(d.date)})${d.opponent?' '+d.opponent:''} 기록 확인 🙏\n`;
+  if(d.ours!==''&&d.ours!=null)t+=`스코어 ${d.ours} : ${d.theirs===''?'-':d.theirs}\n`;
+  t+='\n';
+  qs.forEach(q=>{t+=`${q.label}  ${q.parts.length?q.parts.map(([ic,l])=>ic+' '+l.join(', ')).join('  /  '):'-'}\n`;});
+  t+='━━━━━━━━━━\n합계\n';
+  sum.forEach(([ic,l])=>{t+=`${ic} ${l.join(', ')}\n`;});
+  if(d.mvp)t+=`⭐ MVP ${nmOf(S.players[d.mvp])}\n`;
+  t+=`출석 ${att}명\n\n틀린 거 있으면 말씀해주세요!`;
+  return t;
+}
+async function shareQText(){
+  const t=qText();
+  if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)&&navigator.share){try{await navigator.share({text:t});return;}catch(e){if(e&&e.name==='AbortError')return;}}
+  try{await navigator.clipboard.writeText(t);toast('복사했어요. 톡방에 붙여넣기 하세요');}catch(e){openModal({type:'text',text:t});}
+}
+async function quarterImage(){
+  try{await document.fonts.ready;}catch(e){}
+  const {d,qs,sum}=qLines();
+  const W=1080,pad=60,cw=W-pad*2;const [m,mc]=cvs(10,10);mc.font='700 32px '+FNT;
+  const wrap=(c,txt,mw)=>{const out=[];let ln='';for(const w of txt.split(', ')){const tt=ln?ln+', '+w:w;if(c.measureText(tt).width>mw&&ln){out.push(ln+',');ln=w;}else ln=tt;}if(ln)out.push(ln);return out;};
+  const lay=parts=>{let lines=[];parts.forEach(([ic,l,lb])=>{wrap(mc,l.join(', '),cw-330).forEach((x,i)=>lines.push([i?'':lb,x]));});return lines.length?lines:[['','-']];};
+  const blocks=qs.map(q=>({t:q.label,lines:lay(q.parts)})).concat([{t:'합계',lines:lay(sum),sum:true}]);
+  let H=260;blocks.forEach(b=>H+=60+b.lines.length*50+26);H+=80;
+  const [cv,c]=cvs(W,H);bgPitch(c,W,H);
+  c.textAlign='center';c.fillStyle='#fff';c.font='700 64px Oswald, '+FNT;c.fillText('ONE FC',W/2,95);
+  c.font='900 40px '+FNT;c.fillText('쿼터별 기록',W/2,155);
+  c.font='500 28px '+FNT;c.fillStyle='rgba(255,255,255,.8)';
+  c.fillText(`${fmtD(d.date)} (${dow(d.date)})${d.opponent?' · '+d.opponent:''}${d.ours!==''&&d.ours!=null?` · ${d.ours} : ${d.theirs===''?'-':d.theirs}`:''}`,W/2,205);
+  let y=250;
+  blocks.forEach(b=>{const bh=40+b.lines.length*50+26;rrect(c,pad,y,cw,bh,24);c.fillStyle=b.sum?'#fff6dc':'#fff';c.fill();
+    c.textAlign='left';c.fillStyle=b.sum?'#8a6200':'#0b4fb3';c.font='900 36px '+FNT;c.fillText(b.t,pad+30,y+58);
+    b.lines.forEach(([lb,tx],i)=>{const yy=y+58+i*50;
+      if(lb){c.font='900 22px '+FNT;const w=Math.max(70,c.measureText(lb).width+28);rrect(c,pad+170,yy-29,w,38,19);c.fillStyle=lb==='골'?'#0b4fb3':lb==='어시'?'#0f8a4a':'#8a5cf6';c.fill();c.fillStyle='#fff';c.textAlign='center';c.fillText(fitT(c,lb,w-16),pad+170+w/2,yy-3);c.textAlign='left';}
+      c.fillStyle='#0d1b2e';c.font='700 30px '+FNT;c.fillText(fitT(c,tx,cw-300),pad+290,yy);});
+    y+=bh+26;});
+  if(d.mvp){c.textAlign='center';c.fillStyle='#ffd54a';c.font='900 32px '+FNT;c.fillText('⭐ MVP  '+nmOf(S.players[d.mvp]),W/2,H-40);}
+  finishImg(cv,`ONE_FC_쿼터기록_${d.date.replace(/-/g,'')}.png`,'쿼터별 기록표');
+}
+
 /* ---------- modal ---------- */
 function renderModal(){
   const M=S.modal,el=$('#modal');
@@ -766,6 +832,9 @@ function renderModal(){
     b=`<h3>게스트·용병 추가</h3><div style="font-size:12px;color:var(--mute);margin-bottom:10px">${fmtD(S.sq.date)} 경기 스쿼드에만 들어가고, 선수 명단·기록·시상에는 포함되지 않아요.</div>
      <div class="mgrid"><div class="field"><label>이름 *</label><input id="g_name" placeholder="예) 홍길동"></div><div class="field"><label>등번호 (선택)</label><input id="g_num" inputmode="numeric"></div></div>
      <div class="mact"><button class="btn ghost" data-a="close">취소</button><button class="btn pri" data-a="gsave">추가하고 이 자리에 넣기</button></div>`;
+  }else if(M.type==='text'){
+    b=`<h3>톡방에 붙여넣을 글</h3><textarea id="qtxt" rows="14" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:14px" readonly>${h(M.text)}</textarea>
+     <div style="font-size:12px;color:var(--mute);margin-top:6px">글을 길게 눌러 전체 선택 → 복사하세요.</div><div class="mact"><button class="btn ghost" data-a="close">닫기</button></div>`;
   }else if(M.type==='pick'){
     const q=S.sq.quarters[S.sqQ],F=FORM[q.f],i=M.i;const {ps,att}=benchPlayers();
     const cnt={};S.sq.quarters.forEach(x=>x.s.forEach(id=>{if(id)cnt[id]=(cnt[id]||0)+1;}));
@@ -865,6 +934,12 @@ async function doExport(){
   add('골',grid(r=>r&&r.g?r.g:''),[7,10,12,9]);
   add('어시스트',grid(r=>r&&r.s?r.s:''),[7,10,12,9]);
   add('MVP',grid((r,m,p)=>m.mvp===p.id?1:''),[7,10,12,9]);
+  {const XS2=S.cfg.stats||[];const rows=[['날짜','상대/경기명','쿼터','등번호','이름','골','어시스트',...XS2.map(x=>x.name)]];
+   ms.forEach(m=>{const nq=m.nq||4;Object.entries(m.rec||{}).forEach(([id,r])=>{const p=S.players[id];if(!p)return;
+     const put=(lab,c)=>{if(!c)return;const xs=XS2.map(x=>(c.x||{})[x.id]||0);if(!(c.g||c.s||xs.some(v=>v)))return;rows.push([m.date,m.opponent||'',lab,p.number,p.name,c.g||0,c.s||0,...xs]);};
+     if(r.q){Object.keys(r.q).sort((a,b)=>a-b).forEach(k=>put(k+'Q',r.q[k]));put('구분없음',r.b);}else put('구분없음',{g:r.g,s:r.s,x:r.x});});});
+   rows.splice(1,rows.length-1,...rows.slice(1).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:String(a[2]).localeCompare(String(b[2]),'ko',{numeric:true})));
+   add('쿼터별기록',rows,[12,14,9,7,10,6,9,10]);}
   add('경기목록',[['날짜','요일','상대/경기명','우리','상대','출석인원','팀 득점','득점자','MVP','메모'],...ms.map(m=>{const rec=m.rec||{};return [m.date,dow(m.date),m.opponent||'',m.ours===''?'':m.ours,m.theirs===''?'':m.theirs,Object.values(rec).filter(r=>r.a).length,Object.values(rec).reduce((s,r)=>s+(r.g||0),0),Object.entries(rec).filter(([,r])=>r.g).map(([id,r])=>(S.players[id]?S.players[id].name:'?')+(r.g>1?'('+r.g+')':'')).join(', '),m.mvp?pname(S.players[m.mvp]):'',m.memo||''];})],[12,5,16,6,6,9,8,30,14,20]);
   add('선수명단',[['등번호','이름','역할','포지션','가입일','상태','탈퇴일','메모'],...players.map(p=>[p.number,p.name,p.role||'',p.position||'',p.joinDate||'기존 멤버',p.status==='left'?'탈퇴':'활동',p.leftDate||'',p.memo||''])],[7,10,6,8,12,6,12,24]);
   const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
@@ -876,7 +951,7 @@ async function doExport(){
 
 /* ---------- events ---------- */
 function setDirty(){S.dirty=true;const t=$('.savebar .txt');if(t)t.innerHTML='<span class="dot"></span><b>저장 안 됨</b><br>'+fmtD(S.draft.date)+' ('+dow(S.draft.date)+')';}
-function rec(id){return S.draft.rec[id]||(S.draft.rec[id]={a:false,g:0,s:0});}
+function rec(id){return S.draft.rec[id]||(S.draft.rec[id]={a:false,g:0,s:0,b:{g:0,s:0,x:{}},q:{}});}
 
 document.addEventListener('click',async e=>{
   const t=e.target.closest('[data-a]');if(!t)return;
@@ -886,14 +961,25 @@ document.addEventListener('click',async e=>{
   switch(a){
     case 'tab':S.tab=v;render();window.scrollTo(0,0);break;
     case 'att':{const r=rec(v);r.a=!r.a;if(!r.a&&D.mvp===v)D.mvp='';setDirty();render();break;}
-    case 'g+':case 's+':{const r=rec(v);r[a[0]]=(r[a[0]]||0)+1;r.a=true;setDirty();render();break;}
-    case 'g-':case 's-':{const r=rec(v);r[a[0]]=Math.max(0,(r[a[0]]||0)-1);setDirty();render();break;}
+    case 'g+':case 's+':{if(S.qm==='sum')break;const c=qcell(rec(v),S.qm);c[a[0]]=(c[a[0]]||0)+1;rec(v).a=true;setDirty();render();break;}
+    case 'g-':case 's-':{if(S.qm==='sum')break;const c=qcell(rec(v),S.qm);c[a[0]]=Math.max(0,(c[a[0]]||0)-1);setDirty();render();break;}
+    case 'qm':S.qm=v;render();break;
+    case 'qadd':D.nq=(D.nq||4)+1;S.qm=String(D.nq);setDirty();render();break;
+    case 'qtext':shareQText();break;
+    case 'qimg':{t.disabled=true;await quarterImage();t.disabled=false;break;}
     case 'mvp':{D.mvp=D.mvp===v?'':v;if(D.mvp)rec(v).a=true;setDirty();render();break;}
     case 'allatt':rosterFor(D).filter(p=>p.status!=='left').forEach(p=>rec(p.id).a=true);setDirty();render();break;
     case 'clear':D.rec={};D.mvp='';setDirty();render();break;
     case 'save':{
-      const clean={};Object.entries(D.rec).forEach(([id,r])=>{const x={};if(r.x)for(const k in r.x)if(r.x[k]>0)x[k]=r.x[k];const hx=Object.keys(x).length>0;if(r.a||r.g||r.s||hx){clean[id]={a:!!r.a,g:r.g||0,s:r.s||0};if(hx)clean[id].x=x;}});
-      const body={date:D.date,opponent:D.opponent.trim(),ours:D.ours===''?'':+D.ours,theirs:D.theirs===''?'':+D.theirs,memo:D.memo.trim(),rec:clean,mvp:D.mvp,updatedAt:new Date().toISOString()};
+      const cl=c=>{const o={};if(c.g)o.g=c.g;if(c.s)o.s=c.s;const x={};for(const k in (c.x||{}))if(c.x[k]>0)x[k]=c.x[k];if(Object.keys(x).length)o.x=x;return Object.keys(o).length?o:null;};
+      const clean={};Object.entries(D.rec).forEach(([id,r])=>{
+        const b=cl(r.b||{});const q={};for(const k in (r.q||{})){const c=cl(r.q[k]);if(c)q[k]=c;}
+        const keys=new Set();[r.b||{},...Object.values(r.q||{})].forEach(c=>Object.keys(c.x||{}).forEach(k=>keys.add(k)));
+        const x={};keys.forEach(k=>{const v=tot({b:r.b,q:r.q},'x:'+k);if(v>0)x[k]=v;});
+        const g=tot({b:r.b,q:r.q},'g'),sv=tot({b:r.b,q:r.q},'s');
+        if(r.a||g||sv||Object.keys(x).length){const o={a:!!r.a,g,s:sv};if(Object.keys(x).length)o.x=x;if(b)o.b=b;if(Object.keys(q).length)o.q=q;clean[id]=o;}
+      });
+      const body={nq:D.nq||4,date:D.date,opponent:D.opponent.trim(),ours:D.ours===''?'':+D.ours,theirs:D.theirs===''?'':+D.theirs,memo:D.memo.trim(),rec:clean,mvp:D.mvp,updatedAt:new Date().toISOString()};
       t.disabled=true;
       const ok=await safe(()=>put('matches',D.date,body),'저장됐어요 ✓');
       t.disabled=false;
@@ -920,7 +1006,7 @@ document.addEventListener('click',async e=>{
     case 'mimg':{t.disabled=true;await matchImage();t.disabled=false;break;}
     case 'pcard':{await playerCard(v);break;}
     case 'rkimg':{t.disabled=true;await showRankImage();t.disabled=false;break;}
-    case 'x+':case 'x-':{const r=rec(v);r.x=r.x||{};const c=(r.x[S.mx]||0)+(a==='x+'?1:-1);r.x[S.mx]=Math.max(0,c);if(a==='x+')r.a=true;setDirty();render();break;}
+    case 'x+':case 'x-':{if(S.qm==='sum')break;const r=rec(v);const cc=qcell(r,S.qm);cc.x=cc.x||{};const c=(cc.x[S.mx]||0)+(a==='x+'?1:-1);cc.x[S.mx]=Math.max(0,c);if(a==='x+')r.a=true;setDirty();render();break;}
     case 'awcfg':openModal({type:'awcfg',cfg:JSON.parse(JSON.stringify(S.cfg))});break;
     case 'awadd':S.modal.cfg.awards.push({id:'a'+Date.now().toString(36),name:'',metric:'g'});renderModal();break;
     case 'awdel':S.modal.cfg.awards.splice(+v,1);renderModal();break;
